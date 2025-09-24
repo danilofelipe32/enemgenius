@@ -373,7 +373,15 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             }
             const topicsList = topic.trim() ? topic.split(',').map(t => t.trim()).filter(t => t) : [];
 
-            const commonPromptPart = `
+            const jsonStructure = questionType === 'objective'
+                ? `{ "stem": "O enunciado completo, incluindo o texto de apoio/contexto.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`
+                : `{ "stem": "O enunciado completo, incluindo o texto de apoio/contexto.", "expectedAnswer": "A resposta dissertativa completa e bem fundamentada aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`;
+
+            const prompt = `
+                Aja como um especialista em elaboração de questões para o ENEM, com profundo conhecimento da Base Nacional Comum Curricular (BNCC).
+                Sua tarefa é criar ${numQuestions} questão(ões) ${questionType === 'objective' ? 'de múltipla escolha (A, B, C, D, E)' : 'SUBJETIVAS (dissertativas)'} que sejam ricas em contexto e estritamente alinhadas à BNCC.
+
+                **PARÂMETROS DA QUESTÃO:**
                 - Nível de Ensino (Série/Ano): ${schoolYear}
                 - Área de Conhecimento: ${selectedArea}
                 - Disciplina: ${selectedDiscipline}
@@ -381,42 +389,21 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 - Nível da Taxonomia de Bloom (referência): ${bloomLevel}
                 - Tipo de Construção: ${constructionType}
                 - Tópico(s) Específico(s): ${topic || 'Conhecimentos gerais da disciplina'}
-            `;
 
-            let specialInstruction = '';
-            if (constructionType === 'Interpretação') {
-                specialInstruction = `
-                    INSTRUÇÃO ESPECIAL PARA 'INTERPREtação':
-                    Para questões que exijam um suporte (texto, gráfico, imagem, tabela, charge), o enunciado ('stem') DEVE começar com esse suporte.
-                    1. Se for um texto, inclua-o integralmente entre aspas.
-                    2. Se for um elemento VISUAL (gráfico, imagem, etc.), NÃO CRIE A IMAGEM. Em vez disso, descreva-a de forma rica e detalhada para que uma IA de imagem possa gerá-la. Formate a descrição assim: [DESCRIÇÃO PARA GERAR IMAGEM: Um gráfico de pizza mostrando a distribuição de fontes de energia no Brasil em 2023. A maior fatia é hidrelétrica com 60%, seguida por eólica com 15%...].
-                    Após o suporte (texto ou descrição), apresente o comando da questão.
-                `;
-            } else {
-                specialInstruction = `
-                    INSTRUÇÃO ESPECIAL DE CONTEXTO:
-                    O enunciado ('stem') de cada questão DEVE, obrigatoriamente, conter um texto de apoio ou um contexto de tamanho médio. A questão não deve ser direta, mas sim baseada na análise do contexto apresentado.
-                `;
-            }
-            
-            const jsonFormatInstruction = `
-                Sua resposta DEVE ser um array JSON válido, sem nenhum texto introdutório, final ou explicações.
-                NÃO envolva o JSON em blocos de código markdown como \`\`\`json.
-                A resposta deve ser APENAS o array de objetos JSON.
-                O array deve conter exatamente ${numQuestions} objeto(s).
-                A estrutura de cada objeto no array deve ser:
-            ` + (questionType === 'objective'
-                ? `{ "stem": "O enunciado completo da questão aqui.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`
-                : `{ "stem": "O enunciado completo da questão aqui.", "expectedAnswer": "A resposta dissertativa completa aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`
-            );
+                ${context ? `**BASE DE CONHECIMENTO (RAG):**\nUtilize o seguinte texto como base de conhecimento para criar as questões (o texto foi selecionado por relevância ao tópico):\n---\n${context}\n---` : ''}
 
-            const prompt = `
-                Aja como um especialista em elaboração de questões para o ENEM. Crie ${numQuestions} questão(ões) ${questionType === 'objective' ? 'de múltipla escolha (A, B, C, D, E)' : 'SUBJETIVAS (dissertativas)'} sobre o seguinte tópico:
-                ${commonPromptPart}
-                ${context ? `Utilize o seguinte texto como base de conhecimento para criar as questões (o texto foi selecionado por relevância ao tópico):\n---\n${context}\n---` : ''}
-                ${specialInstruction}
-                REGRAS DE FORMATAÇÃO DA SAÍDA:
-                ${jsonFormatInstruction}
+                **REGRAS OBRIGATÓRIAS DE CRIAÇÃO:**
+                1.  **ALINHAMENTO COM A BNCC:** A questão DEVE ser estritamente alinhada às competências e habilidades da BNCC para a disciplina e o ano escolar especificados. A abordagem deve ser interdisciplinar sempre que possível, conectando o tópico a outras áreas do conhecimento.
+                2.  **CONTEXTUALIZAÇÃO PROFUNDA:** CADA QUESTÃO DEVE APRESENTAR UM CENÁRIO. O enunciado ('stem') precisa conter um texto de apoio, um poema, uma situação-problema, um trecho de notícia, ou a descrição de um elemento visual (gráfico, tabela, imagem). A questão não pode ser uma pergunta direta e descontextualizada. O objetivo é avaliar a capacidade do aluno de analisar, interpretar e aplicar conhecimento em um contexto significativo.
+                3.  **SUPORTE VISUAL (QUANDO APLICÁVEL):** Se a questão exigir um elemento visual (gráfico, imagem, charge), NÃO CRIE A IMAGEM. Em vez disso, descreva-a de forma rica e detalhada para que uma IA de imagem possa gerá-la. Formate a descrição da seguinte forma: [DESCRIÇÃO PARA GERAR IMAGEM: ...descrição detalhada aqui...]. O comando da questão deve vir após essa descrição.
+                
+                **REGRAS DE FORMATAÇÃO DA SAÍDA:**
+                - Sua resposta DEVE ser um array JSON válido, sem nenhum texto introdutório, final ou explicações.
+                - NÃO envolva o JSON em blocos de código markdown como \`\`\`json.
+                - A resposta deve ser APENAS o array de objetos JSON.
+                - O array deve conter exatamente ${numQuestions} objeto(s).
+                - A estrutura de cada objeto no array deve ser:
+                ${jsonStructure}
             `;
             
             const responseText = await apiService.generate(prompt);
