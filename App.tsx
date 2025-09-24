@@ -702,22 +702,28 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
         });
     };
 
-    const handleExport = (format: 'json' | 'csv') => {
+    const handleExport = (format: 'json' | 'csv' | 'pdf') => {
         setIsExportOpen(false);
         if (filteredQuestions.length === 0) {
             showNotification('Nenhuma questão para exportar com os filtros atuais.', 'error');
             return;
         }
 
-        let fileContent: string;
-        let fileType: string;
-        let fileName: string;
-
         if (format === 'json') {
-            fileContent = JSON.stringify(filteredQuestions, null, 2);
-            fileType = 'application/json';
-            fileName = 'enem_genius_questoes.json';
-        } else {
+            const fileContent = JSON.stringify(filteredQuestions, null, 2);
+            const blob = new Blob([fileContent], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'enem_genius_questoes.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            showNotification(`Questões exportadas para JSON!`, 'success');
+            return;
+        }
+        
+        if (format === 'csv') {
             const headers = ['id', 'stem', 'type', 'options', 'answerIndex', 'expectedAnswer', 'favorited', 'discipline', 'bloomLevel', 'constructionType', 'difficulty'];
             const escapeCSV = (value: any): string => {
                 if (value == null) return '';
@@ -738,22 +744,114 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                 }).join(',');
             });
             
-            // Add BOM for Excel UTF-8 compatibility
-            fileContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-            fileType = 'text/csv;charset=utf-8;';
-            fileName = 'enem_genius_questoes.csv';
+            const fileContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([fileContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'enem_genius_questoes.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            showNotification(`Questões exportadas para CSV!`, 'success');
+            return;
         }
-        
-        const blob = new Blob([fileContent], { type: fileType });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-        
-        showNotification(`Questões exportadas para ${format.toUpperCase()}!`, 'success');
+
+        if (format === 'pdf') {
+            try {
+                if (typeof jspdf === 'undefined') {
+                    throw new Error('A biblioteca de geração de PDF (jsPDF) não foi carregada.');
+                }
+    
+                const { jsPDF } = jspdf;
+                const doc = new jsPDF({
+                    orientation: 'p',
+                    unit: 'pt',
+                    format: 'a4'
+                });
+    
+                const sanitize = (text: string) => {
+                    const element = document.createElement('div');
+                    element.innerText = text;
+                    return element.innerHTML;
+                };
+    
+                let htmlContent = `
+                    <style>
+                        body { font-family: 'Helvetica', 'sans-serif'; font-size: 11pt; line-height: 1.5; color: #333; }
+                        h1 { text-align: center; margin-bottom: 25pt; font-size: 18pt; color: #000; font-weight: bold; border-bottom: 1pt solid #ccc; padding-bottom: 10pt; }
+                        h2 { font-size: 16pt; color: #000; font-weight: bold; margin: 20pt 0 15pt 0; }
+                        .question { margin-bottom: 18pt; page-break-inside: avoid; }
+                        .question-header { font-weight: bold; margin-bottom: 6pt; font-size: 12pt; }
+                        .stem { margin-bottom: 8pt; white-space: pre-wrap; word-wrap: break-word; }
+                        .options { list-style-type: upper-alpha; padding-left: 20pt; margin: 0; }
+                        .options li { margin-bottom: 5pt; padding-left: 5pt; }
+                        .answer-key { margin-top: 30pt; padding-top: 15pt; page-break-before: always; border-top: 2pt solid #000; }
+                        .answer-key ol { list-style-type: none; padding-left: 0; columns: 2; column-gap: 30pt; }
+                        .answer-key li { margin-bottom: 6pt; font-size: 11pt; }
+                        .subjective-answer { margin-bottom: 15pt; page-break-inside: avoid; }
+                    </style>
+                    <h1>Banco de Questões - ENEM Genius</h1>
+                `;
+    
+                filteredQuestions.forEach((q, index) => {
+                    htmlContent += `
+                        <div class="question">
+                            <p class="question-header">Questão ${index + 1}:</p>
+                            <div class="stem">${sanitize(q.stem)}</div>
+                    `;
+                    if (q.type === 'objective' && q.options) {
+                        htmlContent += '<ol class="options">';
+                        q.options.forEach(opt => {
+                            htmlContent += `<li>${sanitize(opt)}</li>`;
+                        });
+                        htmlContent += '</ol>';
+                    }
+                    htmlContent += '</div>';
+                });
+    
+                htmlContent += `<div class="answer-key"><h2>Gabarito</h2><ol>`;
+                filteredQuestions.forEach((q, index) => {
+                    let answer = 'Resposta dissertativa';
+                    if (q.type === 'objective' && typeof q.answerIndex === 'number') {
+                        answer = String.fromCharCode(65 + q.answerIndex);
+                    }
+                    htmlContent += `<li><strong>Questão ${index + 1}:</strong> ${answer}</li>`;
+                });
+                htmlContent += `</ol></div>`;
+
+                 const subjectiveQuestions = filteredQuestions.filter(q => q.type === 'subjective' && q.expectedAnswer);
+                if (subjectiveQuestions.length > 0) {
+                    htmlContent += `<h2>Respostas Esperadas (Dissertativas)</h2>`;
+                    subjectiveQuestions.forEach(q => {
+                        const index = filteredQuestions.findIndex(fq => fq.id === q.id);
+                        if (index !== -1) {
+                             htmlContent += `
+                                <div class="subjective-answer">
+                                    <p><strong>Questão ${index + 1}:</strong></p>
+                                    <p>${sanitize(q.expectedAnswer || '')}</p>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+    
+                doc.html(htmlContent, {
+                    callback: function (docInstance: any) {
+                        docInstance.save(`banco_de_questoes_enem_genius.pdf`);
+                        showNotification('PDF gerado com sucesso!', 'success');
+                    },
+                    x: 40,
+                    y: 40,
+                    width: 515,
+                    windowWidth: 800
+                });
+            } catch (error) {
+                console.error("Falha ao gerar PDF:", error);
+                const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido durante a geração do PDF.";
+                showNotification(`Falha ao gerar o PDF: ${errorMessage}`, 'error');
+            }
+        }
     };
 
     const goToPage = (page: number) => {
@@ -816,6 +914,9 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                                 </button>
                                 <button onClick={() => handleExport('csv')} className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" role="menuitem">
                                     Exportar para CSV
+                                </button>
+                                <button onClick={() => handleExport('pdf')} className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" role="menuitem">
+                                    Exportar para PDF
                                 </button>
                             </div>
                         </div>
