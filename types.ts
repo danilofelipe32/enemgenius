@@ -12,6 +12,7 @@ export interface Question {
   difficulty: string;
   schoolYear: string;
   topics: string[];
+  creationDate: number;
 }
 
 export interface Exam {

@@ -424,6 +424,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 schoolYear: q.schoolYear || schoolYear,
                 type: questionType,
                 topics: q.topics || topicsList,
+                creationDate: Date.now(),
             }));
 
             setGeneratedQuestions(newQuestions);
@@ -618,6 +619,8 @@ interface QuestionBankViewProps {
 }
 
 const QUESTIONS_PER_PAGE = 10;
+type SortOrder = 'newest' | 'oldest';
+
 
 const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
     if (totalPages <= 7) { // Se 7 ou menos páginas, mostra todas
@@ -659,6 +662,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     const [filterSchoolYear, setFilterSchoolYear] = useState('Todos os Anos');
     const [filterFavorited, setFilterFavorited] = useState(false);
     const [filterTopic, setFilterTopic] = useState('');
+    const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
     const [isExportOpen, setIsExportOpen] = useState(false);
     const exportRef = useRef<HTMLDivElement>(null);
 
@@ -673,19 +677,33 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
 
     const filteredQuestions = useMemo(() => {
         const lowercasedTopic = filterTopic.toLowerCase();
-        return questions.filter(q => {
+        
+        const filtered = questions.filter(q => {
             const disciplineMatch = filterDiscipline === 'Todas' || q.discipline === filterDiscipline;
             const bloomMatch = filterBloom === 'Todos' || q.bloomLevel === filterBloom;
             const favoritedMatch = !filterFavorited || q.favorited;
             const schoolYearMatch = filterSchoolYear === 'Todos os Anos' || q.schoolYear === filterSchoolYear;
             const topicMatch = filterTopic === '' || (q.topics && q.topics.some(t => t.toLowerCase().includes(lowercasedTopic)));
             return disciplineMatch && bloomMatch && favoritedMatch && schoolYearMatch && topicMatch;
-        }).sort((a, b) => b.favorited === a.favorited ? 0 : b.favorited ? 1 : -1);
-    }, [questions, filterDiscipline, filterBloom, filterFavorited, filterSchoolYear, filterTopic]);
+        });
+
+        return filtered.sort((a, b) => {
+             // Se o filtro "Apenas Favoritas" não estiver ativo, priorize as favoritadas
+            if (!filterFavorited) {
+                if (a.favorited && !b.favorited) return -1;
+                if (!a.favorited && b.favorited) return 1;
+            }
+            
+            // Ordenação por data
+            const dateA = a.creationDate || 0;
+            const dateB = b.creationDate || 0;
+            return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+        });
+    }, [questions, filterDiscipline, filterBloom, filterFavorited, filterSchoolYear, filterTopic, sortOrder]);
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [filterDiscipline, filterBloom, filterFavorited, filterSchoolYear, filterTopic]);
+    }, [filterDiscipline, filterBloom, filterFavorited, filterSchoolYear, filterTopic, sortOrder]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -752,7 +770,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
         }
         
         if (format === 'csv') {
-            const headers = ['id', 'stem', 'type', 'options', 'answerIndex', 'expectedAnswer', 'favorited', 'discipline', 'bloomLevel', 'constructionType', 'difficulty', 'schoolYear', 'topics'];
+            const headers = ['id', 'stem', 'type', 'options', 'answerIndex', 'expectedAnswer', 'favorited', 'discipline', 'bloomLevel', 'constructionType', 'difficulty', 'schoolYear', 'topics', 'creationDate'];
             const escapeCSV = (value: any): string => {
                 if (value == null) return '';
                 let str = String(value);
@@ -767,6 +785,9 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                     let value = (q as any)[header];
                     if ((header === 'options' || header === 'topics') && Array.isArray(value)) {
                         value = JSON.stringify(value);
+                    }
+                    if (header === 'creationDate' && typeof value === 'number') {
+                        value = new Date(value).toISOString();
                     }
                     return escapeCSV(value);
                 }).join(',');
@@ -930,7 +951,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     return (
         <div className="bg-white p-6 rounded-lg border border-slate-200">
             <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6 pb-6 border-b border-slate-200">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                     <CustomDropdown
                         id="filter-discipline"
                         label="Filtrar por Disciplina"
@@ -952,7 +973,14 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                         selectedValue={filterSchoolYear}
                         onSelect={setFilterSchoolYear}
                     />
-                    <div>
+                    <CustomDropdown
+                        id="sort-order"
+                        label="Ordenar por"
+                        options={['Mais Recentes', 'Mais Antigas']}
+                        selectedValue={sortOrder === 'newest' ? 'Mais Recentes' : 'Mais Antigas'}
+                        onSelect={(value) => setSortOrder(value === 'Mais Recentes' ? 'newest' : 'oldest')}
+                    />
+                    <div className="lg:col-span-2">
                         <label htmlFor="filter-topic" className="block text-sm font-medium text-slate-700">Filtrar por Tópico</label>
                         <input
                             type="text"
@@ -1988,10 +2016,38 @@ const AppContent: React.FC = () => {
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const location = useLocation();
 
+    const showNotification = (message: string, type: 'success' | 'error') => {
+        setNotification({ message, type });
+    };
+
+    const handleSetQuestions = useCallback((updatedQuestions: Question[]) => {
+        setQuestions(updatedQuestions);
+        storageService.saveQuestions(updatedQuestions);
+    }, []);
+
     useEffect(() => {
         const loadData = async () => {
             await storageService.init();
-            setQuestions(storageService.getQuestions());
+            
+            const loadedQuestions = storageService.getQuestions();
+            let needsUpdate = false;
+            const questionsWithDate = loadedQuestions.map((q, index) => {
+                if (!q.creationDate) {
+                    needsUpdate = true;
+                    return {
+                        ...q,
+                        creationDate: Date.now() - (index * 60000) // Stagger old questions by 1 minute
+                    };
+                }
+                return q;
+            });
+
+            if (needsUpdate) {
+                handleSetQuestions(questionsWithDate);
+            } else {
+                setQuestions(loadedQuestions);
+            }
+
             setExams(storageService.getExams());
             const filesMeta = await storageService.getAllFilesMeta();
             const storedFiles = JSON.parse(localStorage.getItem('enem_genius_knowledge_files_selection') || '[]');
@@ -2003,16 +2059,7 @@ const AppContent: React.FC = () => {
             setKnowledgeFiles(syncedFiles);
         };
         loadData();
-    }, []);
-
-    const showNotification = (message: string, type: 'success' | 'error') => {
-        setNotification({ message, type });
-    };
-
-    const handleSetQuestions = useCallback((updatedQuestions: Question[]) => {
-        setQuestions(updatedQuestions);
-        storageService.saveQuestions(updatedQuestions);
-    }, []);
+    }, [handleSetQuestions]);
 
     const handleSetExams = useCallback((updatedExams: Exam[]) => {
         setExams(updatedExams);
