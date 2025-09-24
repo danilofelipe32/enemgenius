@@ -474,7 +474,6 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             `;
             const explanationText = await apiService.generate(prompt);
             setExplanationState({ content: explanationText, isLoading: false, error: null });
-        // FIX: Corrected invalid catch block syntax from `catch(error) =>` to `catch(error)`.
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Falha ao gerar a explicação.";
             setExplanationState({ content: '', isLoading: false, error: errorMessage });
@@ -762,90 +761,121 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                 if (typeof jspdf === 'undefined') {
                     throw new Error('A biblioteca de geração de PDF (jsPDF) não foi carregada.');
                 }
-    
-                const { jsPDF } = jspdf;
-                const doc = new jsPDF({
-                    orientation: 'p',
-                    unit: 'pt',
-                    format: 'a4'
-                });
-    
-                const sanitize = (text: string) => {
-                    const element = document.createElement('div');
-                    element.innerText = text;
-                    return element.innerHTML;
-                };
-    
-                let htmlContent = `
-                    <style>
-                        body { font-family: 'Helvetica', 'sans-serif'; font-size: 11pt; line-height: 1.5; color: #333; }
-                        h1 { text-align: center; margin-bottom: 25pt; font-size: 18pt; color: #000; font-weight: bold; border-bottom: 1pt solid #ccc; padding-bottom: 10pt; }
-                        h2 { font-size: 16pt; color: #000; font-weight: bold; margin: 20pt 0 15pt 0; }
-                        .question { margin-bottom: 18pt; page-break-inside: avoid; }
-                        .question-header { font-weight: bold; margin-bottom: 6pt; font-size: 12pt; }
-                        .stem { margin-bottom: 8pt; white-space: pre-wrap; word-wrap: break-word; }
-                        .options { list-style-type: upper-alpha; padding-left: 20pt; margin: 0; }
-                        .options li { margin-bottom: 5pt; padding-left: 5pt; }
-                        .answer-key { margin-top: 30pt; padding-top: 15pt; page-break-before: always; border-top: 2pt solid #000; }
-                        .answer-key ol { list-style-type: none; padding-left: 0; columns: 2; column-gap: 30pt; }
-                        .answer-key li { margin-bottom: 6pt; font-size: 11pt; }
-                        .subjective-answer { margin-bottom: 15pt; page-break-inside: avoid; }
-                    </style>
-                    <h1>Banco de Questões - ENEM Genius</h1>
-                `;
-    
-                filteredQuestions.forEach((q, index) => {
-                    htmlContent += `
-                        <div class="question">
-                            <p class="question-header">Questão ${index + 1}:</p>
-                            <div class="stem">${sanitize(q.stem)}</div>
-                    `;
-                    if (q.type === 'objective' && q.options) {
-                        htmlContent += '<ol class="options">';
-                        q.options.forEach(opt => {
-                            htmlContent += `<li>${sanitize(opt)}</li>`;
-                        });
-                        htmlContent += '</ol>';
-                    }
-                    htmlContent += '</div>';
-                });
-    
-                htmlContent += `<div class="answer-key"><h2>Gabarito</h2><ol>`;
-                filteredQuestions.forEach((q, index) => {
-                    let answer = 'Resposta dissertativa';
-                    if (q.type === 'objective' && typeof q.answerIndex === 'number') {
-                        answer = String.fromCharCode(65 + q.answerIndex);
-                    }
-                    htmlContent += `<li><strong>Questão ${index + 1}:</strong> ${answer}</li>`;
-                });
-                htmlContent += `</ol></div>`;
 
-                 const subjectiveQuestions = filteredQuestions.filter(q => q.type === 'subjective' && q.expectedAnswer);
-                if (subjectiveQuestions.length > 0) {
-                    htmlContent += `<h2>Respostas Esperadas (Dissertativas)</h2>`;
-                    subjectiveQuestions.forEach(q => {
-                        const index = filteredQuestions.findIndex(fq => fq.id === q.id);
-                        if (index !== -1) {
-                             htmlContent += `
-                                <div class="subjective-answer">
-                                    <p><strong>Questão ${index + 1}:</strong></p>
-                                    <p>${sanitize(q.expectedAnswer || '')}</p>
-                                </div>
-                            `;
+                const { jsPDF } = jspdf;
+                const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+
+                const page = {
+                    width: doc.internal.pageSize.getWidth(),
+                    height: doc.internal.pageSize.getHeight(),
+                    margin: { top: 40, right: 40, bottom: 40, left: 40 }
+                };
+                const contentWidth = page.width - page.margin.left - page.margin.right;
+                let y = page.margin.top;
+
+                const addPageIfNeeded = (requiredHeight: number) => {
+                    if (y + requiredHeight > page.height - page.margin.bottom) {
+                        doc.addPage();
+                        y = page.margin.top;
+                    }
+                };
+
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Banco de Questões - ENEM Genius', page.width / 2, y, { align: 'center' });
+                y += 40;
+
+                const answerKey: { question: number; answer: string }[] = [];
+                const subjectiveAnswers: { question: number; text: string }[] = [];
+
+                filteredQuestions.forEach((q, index) => {
+                    const questionNumber = index + 1;
+
+                    const questionHeader = `Questão ${questionNumber}:`;
+                    doc.setFontSize(12);
+                    doc.setFont('helvetica', 'bold');
+
+                    const stemLines = doc.splitTextToSize(q.stem, contentWidth);
+                    let optionsHeight = 0;
+                    if (q.type === 'objective' && q.options) {
+                        q.options.forEach(opt => {
+                            optionsHeight += doc.splitTextToSize(opt, contentWidth - 20).length * 14;
+                        });
+                    }
+                    const estimatedHeight = 20 + (stemLines.length * 14) + optionsHeight + 10;
+                    addPageIfNeeded(estimatedHeight);
+
+                    doc.text(questionHeader, page.margin.left, y);
+                    y += 20;
+
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(stemLines, page.margin.left, y);
+                    y += stemLines.length * 14;
+
+                    if (q.type === 'objective' && q.options) {
+                        y += 5;
+                        q.options.forEach((option, optIndex) => {
+                            const optionLabel = `${String.fromCharCode(65 + optIndex)}) `;
+                            const optionLines = doc.splitTextToSize(option, contentWidth - 20);
+                            addPageIfNeeded((optionLines.length * 14) + 5);
+                            doc.text(optionLabel, page.margin.left, y);
+                            doc.text(optionLines, page.margin.left + 20, y);
+                            y += (optionLines.length * 14) + 5;
+                        });
+                        if (typeof q.answerIndex === 'number') {
+                            answerKey.push({ question: questionNumber, answer: String.fromCharCode(65 + q.answerIndex) });
                         }
+                    } else {
+                        answerKey.push({ question: questionNumber, answer: 'Resposta dissertativa' });
+                        if (q.expectedAnswer) {
+                            subjectiveAnswers.push({ question: questionNumber, text: q.expectedAnswer });
+                        }
+                    }
+                    y += 15;
+                });
+
+                if (answerKey.length > 0) {
+                    addPageIfNeeded(page.height);
+                    doc.setFontSize(16);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Gabarito', page.margin.left, y);
+                    y += 30;
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'normal');
+                    answerKey.forEach(item => {
+                        const answerText = `Questão ${item.question}: ${item.answer}`;
+                        addPageIfNeeded(20);
+                        doc.text(answerText, page.margin.left, y);
+                        y += 20;
                     });
                 }
-    
-                doc.html(htmlContent, {
-                    callback: function (docInstance: any) {
-                        docInstance.save(`banco_de_questoes_enem_genius.pdf`);
-                        showNotification('PDF gerado com sucesso!', 'success');
-                    },
-                    x: 40,
-                    y: 40,
-                    width: 515,
-                    windowWidth: 800
-                });
+
+                if (subjectiveAnswers.length > 0) {
+                    addPageIfNeeded(page.height);
+                    doc.setFontSize(16);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Respostas Esperadas (Dissertativas)', page.margin.left, y);
+                    y += 30;
+                    subjectiveAnswers.forEach(item => {
+                        const header = `Questão ${item.question}:`;
+                        const answerLines = doc.splitTextToSize(item.text, contentWidth);
+                        const estimatedHeight = 20 + (answerLines.length * 14) + 10;
+                        addPageIfNeeded(estimatedHeight);
+                        doc.setFontSize(12);
+                        doc.setFont('helvetica', 'bold');
+                        doc.text(header, page.margin.left, y);
+                        y += 20;
+                        doc.setFontSize(11);
+                        doc.setFont('helvetica', 'normal');
+                        doc.text(answerLines, page.margin.left, y);
+                        y += (answerLines.length * 14) + 10;
+                    });
+                }
+
+                doc.save('banco_de_questoes_enem_genius.pdf');
+                showNotification('PDF gerado com sucesso!', 'success');
+
             } catch (error) {
                 console.error("Falha ao gerar PDF:", error);
                 const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido durante a geração do PDF.";
@@ -1044,7 +1074,6 @@ const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ files, setFiles, 
             await storageService.saveFile(newFile);
             setFiles([...files, { id: newFile.id, name: newFile.name, isSelected: newFile.isSelected }]);
             showNotification(`Arquivo "${file.name}" adicionado com sucesso!`, 'success');
-        // FIX: Corrected invalid catch block syntax from `catch(error) =>` to `catch(error)`.
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao processar o arquivo.";
             showNotification(errorMessage, 'error');
@@ -1636,7 +1665,6 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
             setShowIaModification(false); // Hide after successful generation
             setIaInstruction('');
 
-        // FIX: Corrected invalid catch block syntax from `catch(error) =>` to `catch(error)`.
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "A resposta da IA está em um formato inválido.";
             showNotification(`Erro ao modificar com IA: ${errorMessage}`, 'error');
