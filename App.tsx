@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { HashRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
 import { storageService, apiService, fileParserService } from './services';
 import { ALL_DISCIPLINES, DISCIPLINE_TO_AREA_MAP, KNOWLEDGE_AREAS } from './constants';
@@ -63,7 +64,7 @@ const Spinner: React.FC<{ size?: 'small' | 'large' }> = ({ size = 'large' }) => 
 };
 
 const Notification: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({ message, type, onDismiss }) => {
-    const baseClasses = 'fixed top-5 right-5 z-50 p-4 rounded-lg shadow-lg text-sm font-semibold transition-opacity duration-300';
+    const baseClasses = 'fixed top-5 right-5 z-[200] p-4 rounded-lg shadow-lg text-sm font-semibold transition-opacity duration-300';
     const typeClasses = type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
 
     useEffect(() => {
@@ -79,6 +80,23 @@ const Notification: React.FC<{ message: string; type: 'success' | 'error'; onDis
     );
 };
 
+const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
+    return (
+        <div className="relative group">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400 cursor-help" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-xs bg-slate-800 text-white text-xs rounded py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10 shadow-lg">
+                {text}
+                <svg className="absolute text-slate-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xmlSpace="preserve">
+                    <polygon className="fill-current" points="0,0 127.5,127.5 255,0" />
+                </svg>
+            </div>
+        </div>
+    );
+};
+
+
 // --- Custom Dropdown Component ---
 interface CustomDropdownProps {
     id: string;
@@ -86,9 +104,10 @@ interface CustomDropdownProps {
     options: string[];
     selectedValue: string;
     onSelect: (value: string) => void;
+    tooltip?: string;
 }
 
-const CustomDropdown: React.FC<CustomDropdownProps> = ({ id, label, options, selectedValue, onSelect }) => {
+const CustomDropdown: React.FC<CustomDropdownProps> = ({ id, label, options, selectedValue, onSelect, tooltip }) => {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -109,7 +128,10 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ id, label, options, sel
 
     return (
         <div className="relative" ref={dropdownRef}>
-            <label htmlFor={id} className="block text-sm font-medium text-slate-700">{label}</label>
+            <div className="flex items-center gap-1.5">
+                 <label htmlFor={id} className="block text-sm font-medium text-slate-700">{label}</label>
+                 {tooltip && <InfoTooltip text={tooltip} />}
+            </div>
             <button
                 type="button"
                 id={id}
@@ -466,7 +488,10 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                             <legend className="text-lg font-semibold text-slate-800 mb-4">Parâmetros da Questão</legend>
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Tipo de Questão</label>
+                                    <div className="flex items-center gap-1.5 mb-2">
+                                        <label className="block text-sm font-medium text-slate-700">Tipo de Questão</label>
+                                        <InfoTooltip text="Define se a questão será de múltipla escolha (objetiva) ou dissertativa (subjetiva)." />
+                                    </div>
                                     <div className="flex gap-4 rounded-md border border-slate-300 p-1 bg-slate-50">
                                         {(['objective', 'subjective'] as const).map(type => (
                                             <button key={type} type="button" onClick={() => setQuestionType(type)}
@@ -478,16 +503,16 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div className="sm:col-span-2">
-                                        <CustomDropdown id="discipline" label="Disciplina" options={ALL_DISCIPLINES} selectedValue={selectedDiscipline} onSelect={handleDisciplineChange} />
+                                        <CustomDropdown id="discipline" label="Disciplina" options={ALL_DISCIPLINES} selectedValue={selectedDiscipline} onSelect={handleDisciplineChange} tooltip="Escolha a matéria escolar para a qual a questão será gerada." />
                                         <p className="mt-1 text-xs text-slate-500">
                                             Área: <span className="font-semibold">{selectedArea}</span>
                                         </p>
                                     </div>
                                     <div className="sm:col-span-2">
-                                        <CustomDropdown id="schoolYear" label="Série/Ano" options={SCHOOL_YEARS} selectedValue={schoolYear} onSelect={setSchoolYear} />
+                                        <CustomDropdown id="schoolYear" label="Série/Ano" options={SCHOOL_YEARS} selectedValue={schoolYear} onSelect={setSchoolYear} tooltip="Selecione o ano letivo do aluno para adequar a complexidade da questão." />
                                     </div>
-                                    <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} />
-                                    <CustomDropdown id="construction" label="Tipo de Construção" options={CONSTRUCTION_TYPES} selectedValue={constructionType} onSelect={setConstructionType} />
+                                    <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} tooltip="Define a dificuldade geral da questão, ajustando automaticamente o nível de Bloom correspondente." />
+                                    <CustomDropdown id="construction" label="Tipo de Construção" options={CONSTRUCTION_TYPES} selectedValue={constructionType} onSelect={setConstructionType} tooltip="Determina o formato e a abordagem da questão, como interpretação de texto, cálculo, ou análise de contexto social." />
                                 </div>
                             </div>
                         </fieldset>
@@ -495,11 +520,17 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                             <legend className="text-lg font-semibold text-slate-800 mb-4">Conteúdo Específico</legend>
                             <div className="space-y-4">
                                  <div>
-                                    <label htmlFor="numQuestions" className="block text-sm font-medium text-slate-700">Número de Questões (1-10)</label>
+                                    <div className="flex items-center gap-1.5">
+                                        <label htmlFor="numQuestions" className="block text-sm font-medium text-slate-700">Número de Questões (1-10)</label>
+                                        <InfoTooltip text="Especifique quantas questões (entre 1 e 10) devem ser geradas de uma só vez." />
+                                    </div>
                                     <input type="number" id="numQuestions" value={numQuestions} onChange={e => setNumQuestions(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))} min="1" max="10" className="mt-1 focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md" />
                                 </div>
                                 <div>
-                                    <label htmlFor="topic" className="block text-sm font-medium text-slate-700">Tópico/Conteúdo (Obrigatório com arquivo)</label>
+                                    <div className="flex items-center gap-1.5">
+                                        <label htmlFor="topic" className="block text-sm font-medium text-slate-700">Tópico/Conteúdo (Obrigatório com arquivo)</label>
+                                        <InfoTooltip text="Descreva o assunto específico da questão. Este campo é obrigatório se você selecionou um arquivo da Base de Conhecimento." />
+                                    </div>
                                     <textarea id="topic" value={topic} onChange={e => setTopic(e.target.value)} rows={3} className="mt-1 focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md" placeholder="Ex: Revolução Francesa, Análise Combinatória..."></textarea>
                                 </div>
                             </div>
@@ -939,80 +970,89 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
     };
 
     const handleGeneratePdf = (examToPrint: Exam) => {
-        if (typeof jspdf === 'undefined') {
-            showNotification('A biblioteca de geração de PDF não foi carregada.', 'error');
-            return;
-        }
-
-        const { jsPDF } = jspdf;
-        const doc = new jsPDF();
-
-        // Sanitize HTML content
-        const sanitize = (text: string) => {
-            const element = document.createElement('div');
-            element.innerText = text;
-            return element.innerHTML;
-        };
-
-        let htmlContent = `
-            <style>
-                body { font-family: 'Helvetica', 'sans-serif'; line-height: 1.6; color: #333; }
-                h1 { text-align: center; margin-bottom: 20px; font-size: 24px; color: #000; }
-                .question { margin-bottom: 20px; page-break-inside: avoid; }
-                .question-header { font-weight: bold; margin-bottom: 8px; }
-                .stem { margin-bottom: 8px; white-space: pre-wrap; word-wrap: break-word; }
-                .options { list-style-type: upper-alpha; padding-left: 25px; margin: 0; }
-                .options li { margin-bottom: 5px; }
-                .answer-key { margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px; page-break-before: always; }
-                h2 { font-size: 20px; color: #000; }
-                .answer-key ol { list-style-type: none; padding-left: 0; }
-                .answer-key li { margin-bottom: 5px; }
-            </style>
-            <h1>${sanitize(examToPrint.name)}</h1>
-        `;
-
-        const examQuestions = examToPrint.questionIds
-            .map(id => questions.find(q => q.id === id))
-            .filter((q): q is Question => !!q);
-        
-        examQuestions.forEach((q, index) => {
-            htmlContent += `
-                <div class="question">
-                    <p class="question-header">Questão ${index + 1}:</p>
-                    <div class="stem">${sanitize(q.stem)}</div>
-            `;
-            if (q.type === 'objective' && examToPrint.generationOptions?.includeOptions && q.options) {
-                htmlContent += '<ol class="options">';
-                q.options.forEach(opt => {
-                    htmlContent += `<li>${sanitize(opt)}</li>`;
-                });
-                htmlContent += '</ol>';
+        try {
+            if (typeof jspdf === 'undefined') {
+                throw new Error('A biblioteca de geração de PDF (jsPDF) não foi carregada.');
             }
-            htmlContent += '</div>';
-        });
 
-        if (examToPrint.generationOptions?.includeAnswerKey) {
-            htmlContent += `<div class="answer-key"><h2>Gabarito</h2><ol>`;
-            examQuestions.forEach((q, index) => {
-                let answer = 'Resposta dissertativa';
-                if (q.type === 'objective' && typeof q.answerIndex === 'number') {
-                    answer = String.fromCharCode(65 + q.answerIndex);
-                }
-                htmlContent += `<li><strong>Questão ${index + 1}:</strong> ${answer}</li>`;
+            const { jsPDF } = jspdf;
+            const doc = new jsPDF({
+                orientation: 'p',
+                unit: 'pt',
+                format: 'a4'
             });
-            htmlContent += `</ol></div>`;
-        }
 
-        doc.html(htmlContent, {
-            callback: function (doc: any) {
-                doc.save(`${examToPrint.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
-                showNotification('PDF gerado com sucesso!', 'success');
-            },
-            x: 15,
-            y: 15,
-            width: 180,
-            windowWidth: 800
-        });
+            // Sanitize HTML content to prevent XSS and rendering issues
+            const sanitize = (text: string) => {
+                const element = document.createElement('div');
+                element.innerText = text;
+                return element.innerHTML;
+            };
+
+            let htmlContent = `
+                <style>
+                    body { font-family: 'Helvetica', 'sans-serif'; font-size: 11pt; line-height: 1.5; color: #333; }
+                    h1 { text-align: center; margin-bottom: 25pt; font-size: 18pt; color: #000; font-weight: bold; border-bottom: 1pt solid #ccc; padding-bottom: 10pt; }
+                    h2 { font-size: 16pt; color: #000; font-weight: bold; margin-bottom: 15pt; }
+                    .question { margin-bottom: 18pt; page-break-inside: avoid; }
+                    .question-header { font-weight: bold; margin-bottom: 6pt; font-size: 12pt; }
+                    .stem { margin-bottom: 8pt; white-space: pre-wrap; word-wrap: break-word; }
+                    .options { list-style-type: upper-alpha; padding-left: 20pt; margin: 0; }
+                    .options li { margin-bottom: 5pt; padding-left: 5pt; }
+                    .answer-key { margin-top: 30pt; padding-top: 15pt; page-break-before: always; border-top: 2pt solid #000; }
+                    .answer-key ol { list-style-type: none; padding-left: 0; columns: 2; column-gap: 30pt; }
+                    .answer-key li { margin-bottom: 6pt; font-size: 11pt; }
+                </style>
+                <h1>${sanitize(examToPrint.name)}</h1>
+            `;
+
+            const examQuestions = examToPrint.questionIds
+                .map(id => questions.find(q => q.id === id))
+                .filter((q): q is Question => !!q);
+            
+            examQuestions.forEach((q, index) => {
+                htmlContent += `
+                    <div class="question">
+                        <p class="question-header">Questão ${index + 1}:</p>
+                        <div class="stem">${sanitize(q.stem)}</div>
+                `;
+                if (q.type === 'objective' && examToPrint.generationOptions?.includeOptions && q.options) {
+                    htmlContent += '<ol class="options">';
+                    q.options.forEach(opt => {
+                        htmlContent += `<li>${sanitize(opt)}</li>`;
+                    });
+                    htmlContent += '</ol>';
+                }
+                htmlContent += '</div>';
+            });
+
+            if (examToPrint.generationOptions?.includeAnswerKey) {
+                htmlContent += `<div class="answer-key"><h2>Gabarito</h2><ol>`;
+                examQuestions.forEach((q, index) => {
+                    let answer = 'Resposta dissertativa';
+                    if (q.type === 'objective' && typeof q.answerIndex === 'number') {
+                        answer = String.fromCharCode(65 + q.answerIndex);
+                    }
+                    htmlContent += `<li><strong>Questão ${index + 1}:</strong> ${answer}</li>`;
+                });
+                htmlContent += `</ol></div>`;
+            }
+
+            doc.html(htmlContent, {
+                callback: function (docInstance: any) {
+                    docInstance.save(`${examToPrint.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+                    showNotification('PDF gerado com sucesso!', 'success');
+                },
+                x: 40,
+                y: 40,
+                width: 515, // A4 width (595pt) - 2*40pt margin
+                windowWidth: 800
+            });
+        } catch (error) {
+            console.error("Falha ao gerar PDF:", error);
+            const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido durante a geração do PDF.";
+            showNotification(`Falha ao gerar o PDF: ${errorMessage}`, 'error');
+        }
     };
     
     const addQuestionToExam = (questionId: string) => {
@@ -1212,15 +1252,14 @@ const EditQuestionView = () => {
 
 type View = 'generator' | 'bank' | 'exams' | 'knowledge';
 
-const App: React.FC = () => {
-    const [currentView, setCurrentView] = useState<View>('generator');
+const AppContent: React.FC = () => {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [exams, setExams] = useState<Exam[]>([]);
     const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const location = useLocation();
 
     useEffect(() => {
         const loadData = async () => {
@@ -1228,7 +1267,6 @@ const App: React.FC = () => {
             setQuestions(storageService.getQuestions());
             setExams(storageService.getExams());
             const filesMeta = await storageService.getAllFilesMeta();
-            // This syncs the isSelected state from localStorage (if any) to the loaded files
             const storedFiles = JSON.parse(localStorage.getItem('enem_genius_knowledge_files_selection') || '[]');
             const syncedFiles = filesMeta.map(fm => {
                 const storedFile = storedFiles.find((sf: KnowledgeFile) => sf.id === fm.id);
@@ -1256,10 +1294,8 @@ const App: React.FC = () => {
 
     const handleSetKnowledgeFiles = useCallback((updatedFiles: KnowledgeFile[]) => {
         setKnowledgeFiles(updatedFiles);
-        // Persist only metadata, including selection state, to localStorage for quick access
         localStorage.setItem('enem_genius_knowledge_files_selection', JSON.stringify(updatedFiles));
     }, []);
-
 
     const addQuestion = useCallback((question: Question) => {
         const updatedQuestions = [question, ...questions];
@@ -1267,15 +1303,8 @@ const App: React.FC = () => {
     }, [questions, handleSetQuestions]);
 
     const handleEditQuestion = (question: Question) => {
-        // TODO: Open edit modal
         alert(`Editando questão: ${question.stem.substring(0, 50)}... (Funcionalidade de edição a ser implementada)`);
-        // setEditingQuestion(question);
     };
-    
-    const handleSetView = (view: View) => {
-        setCurrentView(view);
-        setIsSidebarOpen(false);
-    }
 
     const navItems: { id: View; label: string; icon: React.ReactElement }[] = [
         { id: 'generator', label: 'Gerador', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg> },
@@ -1284,23 +1313,8 @@ const App: React.FC = () => {
         { id: 'knowledge', label: 'Base de Conhecimento', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 16c1.255 0 2.443-.29 3.5-.804V4.804zM14.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 0114.5 16c1.255 0 2.443-.29 3.5-.804v-10A7.968 7.968 0 0014.5 4z" /></svg> },
     ];
 
-    const renderView = () => {
-        switch (currentView) {
-            case 'generator':
-                return <QuestionGeneratorView addQuestion={addQuestion} showNotification={showNotification} knowledgeFiles={knowledgeFiles} onEditQuestion={handleEditQuestion} />;
-            case 'bank':
-                return <QuestionBankView questions={questions} setQuestions={handleSetQuestions} showNotification={showNotification} onEditQuestion={handleEditQuestion} />;
-            case 'exams':
-                return <ExamCreatorView exams={exams} setExams={handleSetExams} questions={questions} showNotification={showNotification} />;
-            case 'knowledge':
-                return <KnowledgeBaseView files={knowledgeFiles} setFiles={handleSetKnowledgeFiles} showNotification={showNotification} />;
-            default:
-                return null;
-        }
-    };
-    
     const Sidebar = () => (
-        <aside className={`fixed top-0 left-0 z-50 w-64 h-screen bg-slate-800 text-slate-200 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 ease-in-out`}>
+        <aside className={`fixed top-0 left-0 z-50 w-64 h-screen bg-slate-800 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 ease-in-out`}>
             <div className="flex items-center justify-center p-4 border-b border-slate-700">
                  <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                     💡 ENEM Genius
@@ -1308,23 +1322,28 @@ const App: React.FC = () => {
             </div>
             <nav className="mt-4">
                 {navItems.map((item) => (
-                    <button
+                    <NavLink
                         key={item.id}
-                        onClick={() => handleSetView(item.id)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left font-medium transition-colors ${
-                            currentView === item.id
-                                ? 'bg-cyan-600 text-white'
-                                : 'hover:bg-slate-700 hover:text-white'
-                        }`}
-                        aria-current={currentView === item.id ? 'page' : undefined}
+                        to={`/${item.id}`}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={({ isActive }) =>
+                            `w-full flex items-center gap-3 px-4 py-3 text-left font-medium transition-colors ${
+                                isActive
+                                    ? 'bg-cyan-600 text-white'
+                                    : 'text-slate-200 hover:bg-slate-700 hover:text-white'
+                            }`
+                        }
+                        aria-current={({isActive}) => isActive ? 'page' : undefined}
                     >
                         {item.icon}
                         <span>{item.label}</span>
-                    </button>
+                    </NavLink>
                 ))}
             </nav>
         </aside>
     );
+
+    const currentPath = location.pathname.replace('/', '') as View;
 
     return (
         <div className="min-h-screen bg-slate-100 text-slate-800">
@@ -1350,19 +1369,30 @@ const App: React.FC = () => {
                                 </svg>
                             </button>
                             <h1 className="text-xl font-bold text-slate-800">
-                                {navItems.find(item => item.id === currentView)?.label}
+                                {navItems.find(item => item.id === currentPath)?.label}
                             </h1>
-                             {/* Placeholder for potential header actions */}
                             <div className="w-6"></div>
                         </div>
                     </div>
                 </header>
                 <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-                    {renderView()}
+                   <Routes>
+                        <Route path="/" element={<Navigate replace to="/generator" />} />
+                        <Route path="/generator" element={<QuestionGeneratorView addQuestion={addQuestion} showNotification={showNotification} knowledgeFiles={knowledgeFiles} onEditQuestion={handleEditQuestion} />} />
+                        <Route path="/bank" element={<QuestionBankView questions={questions} setQuestions={handleSetQuestions} showNotification={showNotification} onEditQuestion={handleEditQuestion} />} />
+                        <Route path="/exams" element={<ExamCreatorView exams={exams} setExams={handleSetExams} questions={questions} showNotification={showNotification} />} />
+                        <Route path="/knowledge" element={<KnowledgeBaseView files={knowledgeFiles} setFiles={handleSetKnowledgeFiles} showNotification={showNotification} />} />
+                   </Routes>
                 </main>
             </div>
         </div>
     );
 };
+
+const App: React.FC = () => (
+    <HashRouter>
+        <AppContent />
+    </HashRouter>
+);
 
 export default App;
