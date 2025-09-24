@@ -372,6 +372,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                     context = allChunks.slice(0, 5).map(chunk => chunk.text).join('\n\n---\n\n');
                 }
             }
+            const topicsList = topic.trim() ? topic.split(',').map(t => t.trim()).filter(t => t) : [];
 
             const commonPromptPart = `
                 - Nível de Ensino (Série/Ano): ${schoolYear}
@@ -380,7 +381,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 - Nível de Dificuldade: ${difficulty}
                 - Nível da Taxonomia de Bloom (referência): ${bloomLevel}
                 - Tipo de Construção: ${constructionType}
-                - Tópico Específico: ${topic || 'Conhecimentos gerais da disciplina'}
+                - Tópico(s) Específico(s): ${topic || 'Conhecimentos gerais da disciplina'}
             `;
 
             let specialInstruction = '';
@@ -406,8 +407,8 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 O array deve conter exatamente ${numQuestions} objeto(s).
                 A estrutura de cada objeto no array deve ser:
             ` + (questionType === 'objective'
-                ? `{ "stem": "O enunciado completo da questão aqui.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}" }`
-                : `{ "stem": "O enunciado completo da questão aqui.", "expectedAnswer": "A resposta dissertativa completa aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}" }`
+                ? `{ "stem": "O enunciado completo da questão aqui.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`
+                : `{ "stem": "O enunciado completo da questão aqui.", "expectedAnswer": "A resposta dissertativa completa aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`
             );
 
             const prompt = `
@@ -434,7 +435,9 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 bloomLevel: q.bloomLevel || bloomLevel,
                 constructionType: q.constructionType || constructionType,
                 difficulty: q.difficulty || difficulty,
+                schoolYear: q.schoolYear || schoolYear,
                 type: questionType,
+                topics: q.topics || topicsList,
             }));
 
             setGeneratedQuestions(newQuestions);
@@ -535,7 +538,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                                 <div>
                                     <div className="flex items-center gap-1.5">
                                         <label htmlFor="topic" className="block text-sm font-medium text-slate-700">Tópico/Conteúdo (Obrigatório com arquivo)</label>
-                                        <InfoTooltip text="Descreva o assunto específico da questão. Este campo é obrigatório se você selecionou um arquivo da Base de Conhecimento." />
+                                        <InfoTooltip text="Descreva o(s) assunto(s) da questão, separados por vírgula. Este campo é obrigatório se você selecionou um arquivo da Base de Conhecimento." />
                                     </div>
                                     <textarea id="topic" value={topic} onChange={e => setTopic(e.target.value)} rows={3} className="mt-1 focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md" placeholder="Ex: Revolução Francesa, Análise Combinatória..."></textarea>
                                 </div>
@@ -634,7 +637,9 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     const [currentPage, setCurrentPage] = useState(1);
     const [filterDiscipline, setFilterDiscipline] = useState('Todas');
     const [filterBloom, setFilterBloom] = useState('Todos');
+    const [filterSchoolYear, setFilterSchoolYear] = useState('Todos os Anos');
     const [filterFavorited, setFilterFavorited] = useState(false);
+    const [filterTopic, setFilterTopic] = useState('');
     const [isExportOpen, setIsExportOpen] = useState(false);
     const exportRef = useRef<HTMLDivElement>(null);
 
@@ -648,17 +653,20 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     };
 
     const filteredQuestions = useMemo(() => {
+        const lowercasedTopic = filterTopic.toLowerCase();
         return questions.filter(q => {
             const disciplineMatch = filterDiscipline === 'Todas' || q.discipline === filterDiscipline;
             const bloomMatch = filterBloom === 'Todos' || q.bloomLevel === filterBloom;
             const favoritedMatch = !filterFavorited || q.favorited;
-            return disciplineMatch && bloomMatch && favoritedMatch;
+            const schoolYearMatch = filterSchoolYear === 'Todos os Anos' || q.schoolYear === filterSchoolYear;
+            const topicMatch = filterTopic === '' || (q.topics && q.topics.some(t => t.toLowerCase().includes(lowercasedTopic)));
+            return disciplineMatch && bloomMatch && favoritedMatch && schoolYearMatch && topicMatch;
         }).sort((a, b) => b.favorited === a.favorited ? 0 : b.favorited ? 1 : -1);
-    }, [questions, filterDiscipline, filterBloom, filterFavorited]);
+    }, [questions, filterDiscipline, filterBloom, filterFavorited, filterSchoolYear, filterTopic]);
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [filterDiscipline, filterBloom, filterFavorited]);
+    }, [filterDiscipline, filterBloom, filterFavorited, filterSchoolYear, filterTopic]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -723,7 +731,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
         }
         
         if (format === 'csv') {
-            const headers = ['id', 'stem', 'type', 'options', 'answerIndex', 'expectedAnswer', 'favorited', 'discipline', 'bloomLevel', 'constructionType', 'difficulty'];
+            const headers = ['id', 'stem', 'type', 'options', 'answerIndex', 'expectedAnswer', 'favorited', 'discipline', 'bloomLevel', 'constructionType', 'difficulty', 'schoolYear', 'topics'];
             const escapeCSV = (value: any): string => {
                 if (value == null) return '';
                 let str = String(value);
@@ -736,7 +744,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
             const rows = filteredQuestions.map(q => {
                 return headers.map(header => {
                     let value = (q as any)[header];
-                    if (header === 'options' && Array.isArray(value)) {
+                    if ((header === 'options' || header === 'topics') && Array.isArray(value)) {
                         value = JSON.stringify(value);
                     }
                     return escapeCSV(value);
@@ -916,6 +924,24 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                         selectedValue={filterBloom}
                         onSelect={setFilterBloom}
                     />
+                    <CustomDropdown
+                        id="filter-school-year"
+                        label="Filtrar por Ano Escolar"
+                        options={['Todos os Anos', ...SCHOOL_YEARS]}
+                        selectedValue={filterSchoolYear}
+                        onSelect={setFilterSchoolYear}
+                    />
+                    <div>
+                        <label htmlFor="filter-topic" className="block text-sm font-medium text-slate-700">Filtrar por Tópico</label>
+                        <input
+                            type="text"
+                            id="filter-topic"
+                            value={filterTopic}
+                            onChange={(e) => setFilterTopic(e.target.value)}
+                            placeholder="Digite um tópico..."
+                            className="mt-1 focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md"
+                        />
+                    </div>
                     <div className="flex items-end">
                         <label className="flex items-center gap-2 mt-1 w-full h-[38px] cursor-pointer p-2 rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50">
                             <input
@@ -969,6 +995,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                                         <span className="inline-block bg-sky-100 text-sky-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{DISCIPLINE_TO_AREA_MAP[q.discipline] || 'N/A'}</span>
                                         <span className="inline-block bg-teal-100 text-teal-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.discipline}</span>
+                                        {q.schoolYear && <span className="inline-block bg-pink-100 text-pink-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.schoolYear}</span>}
                                         <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.difficulty}</span>
                                         <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded-full ${BLOOM_LEVEL_COLORS[q.bloomLevel] || 'bg-gray-100 text-gray-800'}`}>{q.bloomLevel}</span>
                                         <span className="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.constructionType}</span>
@@ -977,6 +1004,15 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                                         )}
                                     </div>
                                     <p className="text-slate-800 font-medium whitespace-pre-wrap group-hover:text-cyan-700">{q.stem}</p>
+                                    {q.topics && q.topics.length > 0 && (
+                                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                            {q.topics.map((topic, index) => (
+                                                <span key={index} className="inline-block bg-slate-200 text-slate-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                                                    {topic}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                     {q.type === 'objective' && q.options && typeof q.answerIndex === 'number' && (
                                         <>
                                             <ol className="list-[upper-alpha] list-inside pl-2 mt-2 space-y-1 text-slate-600">
@@ -989,7 +1025,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                                 <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-200 pt-2">
                                     <button onClick={() => handleCopyQuestion(q.stem)} className="p-1.5 text-slate-400 hover:text-cyan-600 rounded-full transition-colors" aria-label="Copiar Enunciado">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                                            <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2-2H9a2 2 0 01-2-2V9z" />
                                             <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h6a2 2 0 00-2-2H5z" />
                                         </svg>
                                     </button>
@@ -1594,10 +1630,15 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
     const [showIaModification, setShowIaModification] = useState(false);
     const [iaInstruction, setIaInstruction] = useState('');
     const [isModifying, setIsModifying] = useState(false);
+    const [topicInput, setTopicInput] = useState('');
 
     useEffect(() => {
         if (question) {
-            setEditedQuestion(JSON.parse(JSON.stringify(question)));
+            const questionCopy = JSON.parse(JSON.stringify(question));
+            if (!questionCopy.topics) {
+                questionCopy.topics = []; // Ensure topics array exists for older questions
+            }
+            setEditedQuestion(questionCopy);
             setShowIaModification(false);
             setIaInstruction('');
         } else {
@@ -1618,16 +1659,17 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                 difficulty: editedQuestion.difficulty,
                 constructionType: editedQuestion.constructionType,
                 bloomLevel: editedQuestion.bloomLevel,
+                topics: editedQuestion.topics,
             };
 
             let formatInstruction = '';
             if (editedQuestion.type === 'objective') {
                 originalQuestionPayload.options = editedQuestion.options;
                 originalQuestionPayload.answerIndex = editedQuestion.answerIndex;
-                formatInstruction = `{ "stem": "...", "options": ["...", "...", "...", "...", "..."], "answerIndex": 0 }`;
+                formatInstruction = `{ "stem": "...", "options": ["...", "...", "...", "...", "..."], "answerIndex": 0, "topics": ["..."] }`;
             } else {
                 originalQuestionPayload.expectedAnswer = editedQuestion.expectedAnswer;
-                formatInstruction = `{ "stem": "...", "expectedAnswer": "..." }`;
+                formatInstruction = `{ "stem": "...", "expectedAnswer": "...", "topics": ["..."] }`;
             }
 
             const prompt = `
@@ -1640,7 +1682,7 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                 "${iaInstruction}"
 
                 REGRAS OBRIGATÓRIAS:
-                1. Modifique a questão original (enunciado, alternativas, e/ou gabarito) para atender à instrução.
+                1. Modifique a questão original (enunciado, alternativas, gabarito, tópicos) para atender à instrução.
                 2. Mantenha a mesma estrutura de dados da questão original.
                 3. Sua resposta DEVE ser um objeto JSON VÁLIDO, e NADA MAIS.
                 4. NÃO inclua explicações, texto introdutório, ou blocos de código markdown como \`\`\`json.
@@ -1659,6 +1701,7 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                     options: modifiedData.options || prev.options,
                     answerIndex: (typeof modifiedData.answerIndex === 'number') ? modifiedData.answerIndex : prev.answerIndex,
                     expectedAnswer: modifiedData.expectedAnswer !== undefined ? modifiedData.expectedAnswer : prev.expectedAnswer,
+                    topics: modifiedData.topics || prev.topics,
                 };
             });
             showNotification('Questão modificada pela IA. Verifique as alterações e salve.', 'success');
@@ -1701,6 +1744,41 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
         }
     };
     
+    const addTopic = (topic: string) => {
+        setEditedQuestion(prev => {
+            if (!prev) return null;
+            const existingTopics = prev.topics || [];
+            if (!existingTopics.map(t => t.toLowerCase()).includes(topic.toLowerCase())) {
+                return { ...prev, topics: [...existingTopics, topic] };
+            }
+            return prev;
+        });
+        setTopicInput('');
+    };
+
+    const removeTopic = (indexToRemove: number) => {
+        setEditedQuestion(prev => {
+            if (!prev || !prev.topics) return prev;
+            return {
+                ...prev,
+                topics: prev.topics.filter((_, index) => index !== indexToRemove),
+            };
+        });
+    };
+
+    const handleTopicKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            const newTopic = topicInput.trim();
+            if (newTopic) {
+                addTopic(newTopic);
+            }
+        } else if (e.key === 'Backspace' && topicInput === '' && editedQuestion.topics && editedQuestion.topics.length > 0) {
+            removeTopic(editedQuestion.topics.length - 1);
+        }
+    };
+
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 transition-opacity duration-300" onClick={onClose}>
             <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -1749,6 +1827,33 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                             <textarea id="expectedAnswer" name="expectedAnswer" value={editedQuestion.expectedAnswer || ''} onChange={handleInputChange} rows={4} className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md" />
                         </div>
                     )}
+                     <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Tópicos (Tags)</label>
+                        <div className="flex flex-wrap items-center gap-2 p-2 border border-slate-300 rounded-md focus-within:ring-1 focus-within:ring-cyan-500 focus-within:border-cyan-500">
+                            {editedQuestion.topics?.map((topic, index) => (
+                                <span key={index} className="flex items-center gap-1.5 bg-cyan-100 text-cyan-800 text-sm font-medium px-2 py-1 rounded-md">
+                                    {topic}
+                                    <button
+                                        type="button"
+                                        onClick={() => removeTopic(index)}
+                                        className="text-cyan-600 hover:text-cyan-900 font-bold"
+                                        aria-label={`Remover tópico ${topic}`}
+                                    >
+                                        &times;
+                                    </button>
+                                </span>
+                            ))}
+                            <input
+                                type="text"
+                                value={topicInput}
+                                onChange={(e) => setTopicInput(e.target.value)}
+                                onKeyDown={handleTopicKeyDown}
+                                placeholder="Adicionar tópico..."
+                                className="flex-grow bg-transparent border-none focus:ring-0 p-1 text-sm"
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Pressione Enter ou vírgula para adicionar um tópico.</p>
+                    </div>
 
                     {showIaModification && (
                         <div className="p-4 bg-cyan-50/50 border border-cyan-200 rounded-md space-y-3 transition-all">
@@ -1771,13 +1876,20 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-slate-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
                          <CustomDropdown 
                             id="edit-discipline"
                             label="Disciplina"
                             options={ALL_DISCIPLINES}
                             selectedValue={editedQuestion.discipline}
                             onSelect={(value) => handleDropdownChange('discipline', value)}
+                         />
+                         <CustomDropdown 
+                            id="edit-school-year"
+                            label="Ano Escolar"
+                            options={SCHOOL_YEARS}
+                            selectedValue={editedQuestion.schoolYear}
+                            onSelect={(value) => handleDropdownChange('schoolYear', value)}
                          />
                          <CustomDropdown 
                             id="edit-difficulty"

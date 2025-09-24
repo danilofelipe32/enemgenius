@@ -10,6 +10,8 @@ export interface Question {
   bloomLevel: string;
   constructionType: string;
   difficulty: string;
+  schoolYear: string;
+  topics: string[];
 }
 
 export interface Exam {
