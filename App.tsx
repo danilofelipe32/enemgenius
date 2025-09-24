@@ -343,7 +343,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             let specialInstruction = '';
             if (constructionType === 'Interpretação') {
                 specialInstruction = `
-                    INSTRUÇÃO ESPECIAL PARA 'INTERPRETAÇÃO':
+                    INSTRUÇÃO ESPECIAL PARA 'INTERPRETAção':
                     Para questões que exijam um suporte (texto, gráfico, imagem, tabela, charge), o enunciado ('stem') DEVE começar com esse suporte.
                     1. Se for um texto, inclua-o integralmente entre aspas.
                     2. Se for um elemento VISUAL (gráfico, imagem, etc.), NÃO CRIE A IMAGEM. Em vez disso, descreva-a de forma rica e detalhada para que uma IA de imagem possa gerá-la. Formate a descrição assim: [DESCRIÇÃO PARA GERAR IMAGEM: Um gráfico de pizza mostrando a distribuição de fontes de energia no Brasil em 2023. A maior fatia é hidrelétrica com 60%, seguida por eólica com 15%...].
@@ -868,7 +868,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
 
     const startNewExam = () => {
         setEditingExam({ id: crypto.randomUUID(), name: '', questionIds: [] });
-        setExamName('');
+        setExamName('Nova Prova');
         setQuestionIdsInExam([]);
         setGenerationOptions({ includeOptions: true, includeAnswerKey: true });
     };
@@ -941,7 +941,8 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
     
     if (editingExam) {
         return (
-            <div className="bg-white p-6 rounded-lg border border-slate-200">
+            <div className="bg-white p-4 sm:p-6 rounded-lg border border-slate-200">
+                {/* Header: Name input and Top Actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 pb-4 border-b border-slate-200">
                     <input
                         type="text"
@@ -951,8 +952,8 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                         className="text-xl font-bold text-slate-800 focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:w-1/2 shadow-sm sm:text-lg border-slate-300 rounded-md"
                     />
                     <div className="flex items-center gap-2">
-                        <button onClick={cancelEditing} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md">Cancelar</button>
-                        <button onClick={handleSaveExam} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm">Salvar Alterações</button>
+                        <button onClick={cancelEditing} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md w-1/2 sm:w-auto">Cancelar</button>
+                        <button onClick={handleSaveExam} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm w-1/2 sm:w-auto">Salvar Prova</button>
                     </div>
                 </div>
 
@@ -982,25 +983,27 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Questions in Exam */}
-                    <div className="space-y-3">
+                    <div className="space-y-3 flex flex-col">
                         <h3 className="font-semibold text-slate-700">Questões na Prova ({questionsInCurrentExam.length})</h3>
-                        <div className="border border-slate-200 rounded-md p-2 h-96 overflow-y-auto custom-scrollbar space-y-2">
+                        <div className="border border-slate-200 rounded-md p-2 flex-grow max-h-96 overflow-y-auto custom-scrollbar space-y-2">
                            {questionsInCurrentExam.length > 0 ? questionsInCurrentExam.map(q => (
-                               <div key={q.id} className="p-2 bg-slate-50 rounded-md flex justify-between items-start gap-2">
-                                   <p className="text-sm text-slate-600 flex-1 truncate" title={q.stem}>{q.stem}</p>
-                                   <button onClick={() => removeQuestionFromExam(q.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full flex-shrink-0">
-                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                               <div key={q.id} className="p-2.5 bg-slate-50 rounded-md flex justify-between items-center gap-2">
+                                   <p className="text-sm text-slate-700 font-medium flex-1 truncate" title={q.stem}>{q.stem}</p>
+                                   <button onClick={() => removeQuestionFromExam(q.id)} className="p-1.5 text-red-500 hover:bg-red-100 rounded-full flex-shrink-0" aria-label="Remover questão">
+                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
                                    </button>
                                </div>
                            )) : (
-                               <p className="text-sm text-slate-400 text-center pt-4">Adicione questões do banco.</p>
+                               <div className="flex items-center justify-center h-full">
+                                   <p className="text-sm text-slate-400 text-center p-4">Comece a adicionar questões do banco ao lado (ou abaixo em telas menores).</p>
+                               </div>
                            )}
                         </div>
                     </div>
 
                     {/* Available Questions */}
-                    <div className="space-y-3">
-                        <h3 className="font-semibold text-slate-700">Questões Disponíveis</h3>
+                    <div className="space-y-3 flex flex-col">
+                        <h3 className="font-semibold text-slate-700">Questões Disponíveis ({availableQuestions.length})</h3>
                         <input
                             type="text"
                             value={searchTerm}
@@ -1008,20 +1011,30 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                             placeholder="Buscar por enunciado ou disciplina..."
                             className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md"
                         />
-                        <div className="border border-slate-200 rounded-md p-2 h-80 overflow-y-auto custom-scrollbar space-y-2">
-                            {availableQuestions.map(q => (
-                               <div key={q.id} className="p-2 bg-white rounded-md flex justify-between items-start gap-2 hover:bg-slate-50">
-                                   <div className="flex-1">
-                                       <p className="text-sm text-slate-600 truncate" title={q.stem}>{q.stem}</p>
-                                       <span className="text-xs text-slate-400">{q.discipline}</span>
+                        <div className="border border-slate-200 rounded-md p-2 flex-grow max-h-96 overflow-y-auto custom-scrollbar space-y-2">
+                            {availableQuestions.length > 0 ? availableQuestions.map(q => (
+                               <div key={q.id} className="p-2.5 bg-white rounded-md flex justify-between items-center gap-2 hover:bg-slate-50 transition-colors duration-150">
+                                   <div className="flex-1 min-w-0">
+                                       <p className="text-sm text-slate-700 font-medium truncate" title={q.stem}>{q.stem}</p>
+                                       <span className="text-xs text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{q.discipline}</span>
                                    </div>
-                                   <button onClick={() => addQuestionToExam(q.id)} className="p-1 text-green-500 hover:bg-green-100 rounded-full flex-shrink-0">
-                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" /></svg>
+                                   <button onClick={() => addQuestionToExam(q.id)} className="p-1.5 text-green-500 hover:bg-green-100 rounded-full flex-shrink-0" aria-label="Adicionar questão">
+                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" /></svg>
                                    </button>
                                </div>
-                           ))}
+                           )) : (
+                                <div className="flex items-center justify-center h-full">
+                                   <p className="text-sm text-slate-400 text-center p-4">Nenhuma questão disponível com este filtro.</p>
+                               </div>
+                           )}
                         </div>
                     </div>
+                </div>
+
+                {/* Bottom Actions - for better mobile UX */}
+                <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
+                    <button onClick={cancelEditing} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md">Cancelar</button>
+                    <button onClick={handleSaveExam} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm">Salvar Prova</button>
                 </div>
             </div>
         );
@@ -1043,14 +1056,14 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
             ) : (
                 <ul className="divide-y divide-slate-200">
                     {exams.map(exam => (
-                        <li key={exam.id} className="py-3 flex items-center justify-between">
+                        <li key={exam.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div>
                                 <p className="font-medium text-slate-800">{exam.name}</p>
-                                <p className="text-sm text-slate-500">{exam.questionIds.length} questões</p>
+                                <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => startEditingExam(exam)} className="p-2 text-slate-500 hover:text-cyan-600 hover:bg-slate-100 rounded-md">Editar</button>
-                                <button onClick={() => handleDeleteExam(exam.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-slate-100 rounded-md">Excluir</button>
+                            <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0">
+                                <button onClick={() => startEditingExam(exam)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md">Editar</button>
+                                <button onClick={() => handleDeleteExam(exam.id)} className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md">Excluir</button>
                             </div>
                         </li>
                     ))}
