@@ -7,6 +7,19 @@ import { ALL_DISCIPLINES, DISCIPLINE_TO_AREA_MAP, KNOWLEDGE_AREAS } from './cons
 // --- Global Declarations ---
 declare const jspdf: any;
 
+// --- Helper Functions ---
+const formatDate = (timestamp: number): string => {
+  if (!timestamp) return 'Data desconhecida';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp));
+};
+
+
 // --- RAG Helper Functions ---
 
 const PORTUGUESE_STOP_WORDS = new Set([
@@ -1085,6 +1098,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                                         )}
                                     </div>
                                     <p className="text-slate-800 font-medium whitespace-pre-wrap group-hover:text-cyan-700">{q.stem}</p>
+                                    <p className="text-xs text-slate-500 mt-2">{formatDate(q.creationDate)}</p>
                                     {q.topics && q.topics.length > 0 && (
                                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                                             {q.topics.map((topic, index) => (
@@ -1306,7 +1320,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
     const navigate = useNavigate();
 
     const startNewExam = () => {
-        setEditingExam({ id: crypto.randomUUID(), name: '', questionIds: [] });
+        setEditingExam({ id: crypto.randomUUID(), name: '', questionIds: [], creationDate: Date.now() });
         setExamName('Nova Prova');
         setQuestionIdsInExam([]);
         setGenerationOptions({ includeOptions: true, includeAnswerKey: true });
@@ -1629,7 +1643,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                             <li key={exam.id} className="py-3 px-2 -mx-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50/75 rounded-lg transition-colors duration-150">
                                 <div onClick={() => navigate(`/exams/${exam.id}`)} className="flex-grow cursor-pointer">
                                     <p className="font-medium text-slate-800">{exam.name}</p>
-                                    <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
+                                    <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'} &bull; {formatDate(exam.creationDate)}</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto mt-3 sm:mt-0">
                                     <button 
@@ -2131,25 +2145,37 @@ const AppContent: React.FC = () => {
             await storageService.init();
             
             const loadedQuestions = storageService.getQuestions();
-            let needsUpdate = false;
+            let needsQuestionUpdate = false;
             const questionsWithDate = loadedQuestions.map((q, index) => {
                 if (!q.creationDate) {
-                    needsUpdate = true;
-                    return {
-                        ...q,
-                        creationDate: Date.now() - (index * 60000) // Stagger old questions by 1 minute
-                    };
+                    needsQuestionUpdate = true;
+                    return { ...q, creationDate: Date.now() - (index * 60000) };
                 }
                 return q;
             });
-
-            if (needsUpdate) {
+    
+            if (needsQuestionUpdate) {
                 handleSetQuestions(questionsWithDate);
             } else {
                 setQuestions(loadedQuestions);
             }
+    
+            const loadedExams = storageService.getExams();
+            let needsExamUpdate = false;
+            const examsWithDate = loadedExams.map((e, index) => {
+                if (!e.creationDate) {
+                    needsExamUpdate = true;
+                    return { ...e, creationDate: Date.now() - (index * 60000) };
+                }
+                return e;
+            });
+    
+            if (needsExamUpdate) {
+                handleSetExams(examsWithDate);
+            } else {
+                setExams(loadedExams);
+            }
 
-            setExams(storageService.getExams());
             const filesMeta = await storageService.getAllFilesMeta();
             const storedFiles = JSON.parse(localStorage.getItem('enem_genius_knowledge_files_selection') || '[]');
             const syncedFiles = filesMeta.map(fm => {

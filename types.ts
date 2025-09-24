@@ -19,6 +19,7 @@ export interface Exam {
   id: string;
   name: string;
   questionIds: string[];
+  creationDate: number;
   generationOptions?: {
     includeOptions: boolean;
     includeAnswerKey: boolean;
