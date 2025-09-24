@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
-import { storageService, apiService, fileParserService } from './services';
+import { storageService, apiService, fileParserService, ragService } from './services';
 import { ALL_DISCIPLINES, DISCIPLINE_TO_AREA_MAP, KNOWLEDGE_AREAS } from './constants';
 
 // --- Global Declarations ---
@@ -823,12 +823,7 @@ const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ files, setFiles, 
         try {
             const fileContent = await fileParserService.parseFile(file);
             
-            const chunks = [];
-            const chunkSize = 1500;
-            const overlap = 200;
-            for (let i = 0; i < fileContent.length; i += (chunkSize - overlap)) {
-                chunks.push(fileContent.substring(i, i + chunkSize));
-            }
+            const chunks = ragService.chunkText(fileContent);
             
             const newFile: KnowledgeFileWithContent = {
                 id: crypto.randomUUID(),

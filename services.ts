@@ -186,3 +186,80 @@ export const fileParserService = {
     return result.value;
   }
 };
+
+// --- RAG Service ---
+// Fornece uma divisão de texto inteligente para a Geração Aumentada por Recuperação (RAG).
+export const ragService = {
+  /**
+   * Divide um texto longo em partes menores e semanticamente coerentes.
+   * Prioriza a divisão por parágrafos e, em seguida, por frases para evitar a quebra de ideias.
+   * @param text O texto completo a ser dividido.
+   * @param maxChunkSize O tamanho máximo alvo para cada parte (em caracteres).
+   * @returns Um array de partes de texto.
+   */
+  chunkText(text: string, maxChunkSize: number = 1800): string[] {
+    const chunks: string[] = [];
+
+    if (!text || text.trim().length === 0) {
+      return [];
+    }
+
+    // 1. Divide por novas linhas duplas (parágrafos). Esta é a principal fronteira semântica.
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+
+    let currentChunk = "";
+
+    for (const paragraph of paragraphs) {
+      // Se um único parágrafo for maior que o nosso tamanho máximo, ele precisa ser dividido.
+      if (paragraph.length > maxChunkSize) {
+        // Primeiro, se tivermos um `currentChunk`, vamos salvá-lo.
+        if (currentChunk.length > 0) {
+          chunks.push(currentChunk.trim());
+          currentChunk = "";
+        }
+        
+        // Divide o parágrafo grande em frases.
+        // Esta regex é projetada para manter o delimitador (. ! ?) com a frase.
+        const sentences = paragraph.match(/[^.!?]+(?:[.!?]|\s|$)/g) || [];
+        let sentenceChunk = "";
+        for (const sentence of sentences) {
+          const trimmedSentence = sentence.trim();
+          if (trimmedSentence.length === 0) continue;
+
+          // Se adicionar a próxima frase exceder o tamanho máximo, salva a parte de frase atual.
+          if ((sentenceChunk + " " + trimmedSentence).length > maxChunkSize) {
+            chunks.push(sentenceChunk.trim());
+            sentenceChunk = trimmedSentence;
+          } else {
+            sentenceChunk += (sentenceChunk.length > 0 ? " " : "") + trimmedSentence;
+          }
+        }
+        // Salva a última parte de frase restante do parágrafo grande.
+        if (sentenceChunk.length > 0) {
+          chunks.push(sentenceChunk.trim());
+        }
+      } else {
+        // Se adicionar o próximo parágrafo exceder o tamanho máximo, salva a parte atual e começa uma nova.
+        if ((currentChunk + "\n\n" + paragraph).length > maxChunkSize) {
+          chunks.push(currentChunk.trim());
+          currentChunk = paragraph;
+        } else {
+          // Caso contrário, anexa o parágrafo à parte atual.
+          currentChunk += (currentChunk.length > 0 ? "\n\n" : "") + paragraph;
+        }
+      }
+    }
+
+    // Não se esqueça da última parte.
+    if (currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+    }
+    
+    // Se, por algum motivo, não tivermos partes, mas havia texto, retorna o texto inteiro como uma única parte.
+    if (chunks.length === 0 && text.length > 0) {
+      return [text];
+    }
+
+    return chunks;
+  }
+};
