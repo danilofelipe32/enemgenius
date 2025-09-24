@@ -1237,10 +1237,133 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
     );
 };
 
-// --- TODO: Edit Question View (Modal) ---
-const EditQuestionView = () => {
-     return null; // A ser implementado
+// --- Edit Question Modal ---
+interface EditQuestionModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    question: Question | null;
+    onSave: (updatedQuestion: Question) => void;
 }
+
+const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, question, onSave }) => {
+    const [editedQuestion, setEditedQuestion] = useState<Question | null>(null);
+
+    useEffect(() => {
+        if (question) {
+            // Create a deep copy to prevent modifying the original state directly
+            setEditedQuestion(JSON.parse(JSON.stringify(question)));
+        } else {
+            setEditedQuestion(null);
+        }
+    }, [question]);
+
+    if (!isOpen || !editedQuestion) return null;
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setEditedQuestion(prev => prev ? { ...prev, [name]: value } : null);
+    };
+    
+    const handleOptionChange = (index: number, value: string) => {
+        setEditedQuestion(prev => {
+            if (!prev || !prev.options) return prev;
+            const newOptions = [...prev.options];
+            newOptions[index] = value;
+            return { ...prev, options: newOptions };
+        });
+    };
+
+    const handleDropdownChange = (field: keyof Question, value: string) => {
+        setEditedQuestion(prev => prev ? { ...prev, [field]: value } : null);
+    };
+
+    const handleSave = () => {
+        if (editedQuestion) {
+            onSave(editedQuestion);
+        }
+    };
+    
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 transition-opacity duration-300" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <header className="p-4 border-b border-slate-200 flex justify-between items-center flex-shrink-0">
+                    <h3 className="text-lg font-bold text-slate-800">Editar Questão</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </header>
+                <main className="p-6 overflow-y-auto custom-scrollbar space-y-6">
+                    <div>
+                        <label htmlFor="stem" className="block text-sm font-medium text-slate-700 mb-1">Enunciado</label>
+                        <textarea id="stem" name="stem" value={editedQuestion.stem} onChange={handleInputChange} rows={6} className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md" />
+                    </div>
+
+                    {editedQuestion.type === 'objective' && editedQuestion.options && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Alternativas (Marque a correta)</label>
+                            <div className="space-y-3">
+                                {editedQuestion.options.map((option, index) => (
+                                    <div key={index} className="flex items-center gap-3">
+                                        <input
+                                            type="radio"
+                                            name="answerIndex"
+                                            checked={editedQuestion.answerIndex === index}
+                                            onChange={() => setEditedQuestion(prev => prev ? { ...prev, answerIndex: index } : null)}
+                                            className="h-4 w-4 text-cyan-600 border-slate-300 focus:ring-cyan-500"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={option}
+                                            onChange={(e) => handleOptionChange(index, e.target.value)}
+                                            className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {editedQuestion.type === 'subjective' && (
+                         <div>
+                            <label htmlFor="expectedAnswer" className="block text-sm font-medium text-slate-700 mb-1">Resposta Esperada</label>
+                            <textarea id="expectedAnswer" name="expectedAnswer" value={editedQuestion.expectedAnswer || ''} onChange={handleInputChange} rows={4} className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md" />
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-slate-200">
+                         <CustomDropdown 
+                            id="edit-discipline"
+                            label="Disciplina"
+                            options={ALL_DISCIPLINES}
+                            selectedValue={editedQuestion.discipline}
+                            onSelect={(value) => handleDropdownChange('discipline', value)}
+                         />
+                         <CustomDropdown 
+                            id="edit-difficulty"
+                            label="Dificuldade"
+                            options={DIFFICULTY_LEVELS}
+                            selectedValue={editedQuestion.difficulty}
+                            onSelect={(value) => handleDropdownChange('difficulty', value)}
+                         />
+                         <CustomDropdown 
+                            id="edit-construction"
+                            label="Tipo de Construção"
+                            options={CONSTRUCTION_TYPES}
+                            selectedValue={editedQuestion.constructionType}
+                            onSelect={(value) => handleDropdownChange('constructionType', value)}
+                         />
+                    </div>
+                </main>
+                <footer className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3 flex-shrink-0">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-md">Cancelar</button>
+                    <button onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm">Salvar Alterações</button>
+                </footer>
+            </div>
+        </div>
+    );
+};
 
 
 // --- Main App Component ---
@@ -1298,7 +1421,16 @@ const AppContent: React.FC = () => {
     }, [questions, handleSetQuestions]);
 
     const handleEditQuestion = (question: Question) => {
-        alert(`Editando questão: ${question.stem.substring(0, 50)}... (Funcionalidade de edição a ser implementada)`);
+        setEditingQuestion(question);
+    };
+
+    const handleUpdateQuestion = (updatedQuestion: Question) => {
+        const updatedQuestions = questions.map(q =>
+            q.id === updatedQuestion.id ? updatedQuestion : q
+        );
+        handleSetQuestions(updatedQuestions);
+        setEditingQuestion(null); // Close the modal
+        showNotification("Questão atualizada com sucesso!", 'success');
     };
 
     const navItems: { id: View; label: string; icon: React.ReactElement }[] = [
@@ -1344,6 +1476,13 @@ const AppContent: React.FC = () => {
         <div className="min-h-screen bg-slate-100 text-slate-800">
             {notification && <Notification message={notification.message} type={notification.type} onDismiss={() => setNotification(null)} />}
             
+            <EditQuestionModal 
+                isOpen={!!editingQuestion}
+                onClose={() => setEditingQuestion(null)}
+                question={editingQuestion}
+                onSave={handleUpdateQuestion}
+            />
+
             <Sidebar />
 
             {isSidebarOpen && (
