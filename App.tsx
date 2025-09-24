@@ -167,6 +167,13 @@ const CONSTRUCTION_TYPES = [
     "Interpretação", "Cálculo", "Associação de ideias", "Asserção/razão (adaptado)",
     "Interdisciplinaridade", "Atualidades/contexto social", "Experimentos", "Textos culturais/literários",
 ];
+const DIFFICULTY_LEVELS = ['Fácil', 'Médio', 'Difícil'];
+const DIFFICULTY_TO_BLOOM_MAP: { [key: string]: string[] } = {
+  'Fácil': ['Lembrar', 'Entender'],
+  'Médio': ['Aplicar', 'Analisar'],
+  'Difícil': ['Avaliar', 'Criar'],
+};
+
 const LOADING_MESSAGES = [
     'Consultando especialistas...', 'Criando desafios do ENEM...',
     'Ajustando o nível de dificuldade...', 'Polindo os enunciados...', 'Verificando o gabarito...'
@@ -191,7 +198,8 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
     // Form state
     const [selectedDiscipline, setSelectedDiscipline] = useState(ALL_DISCIPLINES[0]);
     const [selectedArea, setSelectedArea] = useState(DISCIPLINE_TO_AREA_MAP[ALL_DISCIPLINES[0]]);
-    const [bloomLevel, setBloomLevel] = useState(BLOOM_LEVELS[2]);
+    const [difficulty, setDifficulty] = useState(DIFFICULTY_LEVELS[1]); // Default 'Médio'
+    const [bloomLevel, setBloomLevel] = useState(DIFFICULTY_TO_BLOOM_MAP[DIFFICULTY_LEVELS[1]][0]); // Default 'Aplicar'
     const [constructionType, setConstructionType] = useState(CONSTRUCTION_TYPES[0]);
     const [numQuestions, setNumQuestions] = useState(3);
     const [topic, setTopic] = useState('');
@@ -214,6 +222,13 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
     const handleDisciplineChange = (newDiscipline: string) => {
         setSelectedDiscipline(newDiscipline);
         setSelectedArea(DISCIPLINE_TO_AREA_MAP[newDiscipline]);
+    };
+
+    const handleDifficultyChange = (newDifficulty: string) => {
+        setDifficulty(newDifficulty);
+        const possibleBloomLevels = DIFFICULTY_TO_BLOOM_MAP[newDifficulty];
+        const randomBloomLevel = possibleBloomLevels[Math.floor(Math.random() * possibleBloomLevels.length)];
+        setBloomLevel(randomBloomLevel);
     };
 
     const handleGenerateQuestions = async (e: React.FormEvent) => {
@@ -243,7 +258,8 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             const commonPromptPart = `
                 - Área de Conhecimento: ${selectedArea}
                 - Disciplina: ${selectedDiscipline}
-                - Nível da Taxonomia de Bloom: ${bloomLevel}
+                - Nível de Dificuldade: ${difficulty}
+                - Nível da Taxonomia de Bloom (referência): ${bloomLevel}
                 - Tipo de Construção: ${constructionType}
                 - Tópico Específico: ${topic || 'Conhecimentos gerais da disciplina'}
             `;
@@ -271,8 +287,8 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 O array deve conter exatamente ${numQuestions} objeto(s).
                 A estrutura de cada objeto no array deve ser:
             ` + (questionType === 'objective'
-                ? `{ "stem": "O enunciado completo da questão aqui.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}" }`
-                : `{ "stem": "O enunciado completo da questão aqui.", "expectedAnswer": "A resposta dissertativa completa aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}" }`
+                ? `{ "stem": "O enunciado completo da questão aqui.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}" }`
+                : `{ "stem": "O enunciado completo da questão aqui.", "expectedAnswer": "A resposta dissertativa completa aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}" }`
             );
 
             const prompt = `
@@ -303,9 +319,10 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 answerIndex: q.answerIndex,
                 expectedAnswer: q.expectedAnswer,
                 favorited: false,
-                discipline: q.discipline || selectedDiscipline, // Fallback to selected
+                discipline: q.discipline || selectedDiscipline,
                 bloomLevel: q.bloomLevel || bloomLevel,
                 constructionType: q.constructionType || constructionType,
+                difficulty: q.difficulty || difficulty,
                 type: questionType,
             }));
 
@@ -378,7 +395,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                                             Área: <span className="font-semibold">{selectedArea}</span>
                                         </p>
                                     </div>
-                                    <CustomDropdown id="bloom" label="Nível de Bloom" options={BLOOM_LEVELS} selectedValue={bloomLevel} onSelect={setBloomLevel} />
+                                    <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} />
                                     <CustomDropdown id="construction" label="Tipo de Construção" options={CONSTRUCTION_TYPES} selectedValue={constructionType} onSelect={setConstructionType} />
                                 </div>
                             </div>
@@ -400,7 +417,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                              <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-600">
                                 <p>
                                     Você irá gerar <strong className="text-slate-800">{numQuestions} questão(ões) {questionType === 'objective' ? 'objetiva(s)' : 'subjetiva(s)'}</strong> de <strong className="text-slate-800">{selectedDiscipline}</strong>,
-                                    nível <strong className="text-slate-800">{bloomLevel}</strong>{topic.trim() ? <> sobre <strong className="text-slate-800">{topic.trim()}</strong></> : ''}.
+                                    nível <strong className="text-slate-800">{difficulty}</strong>{topic.trim() ? <> sobre <strong className="text-slate-800">{topic.trim()}</strong></> : ''}.
                                 </p>
                             </div>
                             <button type="submit" disabled={isLoading} className="w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:bg-slate-400 disabled:cursor-not-allowed transition-all duration-200">
@@ -594,6 +611,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                                         <span className="inline-block bg-sky-100 text-sky-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{DISCIPLINE_TO_AREA_MAP[q.discipline] || 'N/A'}</span>
                                         <span className="inline-block bg-teal-100 text-teal-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.discipline}</span>
+                                        <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.difficulty}</span>
                                         <span className="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.constructionType}</span>
                                         {q.type === 'subjective' && (
                                              <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Subjetiva</span>

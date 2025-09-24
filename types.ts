@@ -9,6 +9,7 @@ export interface Question {
   discipline: string;
   bloomLevel: string;
   constructionType: string;
+  difficulty: string;
 }
 
 export interface Exam {
