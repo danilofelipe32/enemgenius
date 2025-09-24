@@ -3,6 +3,9 @@ import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types
 import { storageService, apiService, fileParserService } from './services';
 import { ALL_DISCIPLINES, DISCIPLINE_TO_AREA_MAP, KNOWLEDGE_AREAS } from './constants';
 
+// --- Global Declarations ---
+declare const jspdf: any;
+
 // --- RAG Helper Functions ---
 
 const PORTUGUESE_STOP_WORDS = new Set([
@@ -222,6 +225,21 @@ const DIFFICULTY_TO_BLOOM_MAP: { [key: string]: string[] } = {
   'Difícil': ['Avaliar', 'Criar'],
 };
 
+const SCHOOL_YEARS = [
+  "1º ano do Ensino Fundamental",
+  "2º ano do Ensino Fundamental",
+  "3º ano do Ensino Fundamental",
+  "4º ano do Ensino Fundamental",
+  "5º ano do Ensino Fundamental",
+  "6º ano do Ensino Fundamental",
+  "7º ano do Ensino Fundamental",
+  "8º ano do Ensino Fundamental",
+  "9º ano do Ensino Fundamental",
+  "1ª Série do Ensino Médio",
+  "2ª Série do Ensino Médio",
+  "3ª Série do Ensino Médio",
+];
+
 const LOADING_MESSAGES = [
     'Consultando especialistas...', 'Criando desafios do ENEM...',
     'Ajustando o nível de dificuldade...', 'Polindo os enunciados...', 'Verificando o gabarito...'
@@ -246,6 +264,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
     // Form state
     const [selectedDiscipline, setSelectedDiscipline] = useState(ALL_DISCIPLINES[0]);
     const [selectedArea, setSelectedArea] = useState(DISCIPLINE_TO_AREA_MAP[ALL_DISCIPLINES[0]]);
+    const [schoolYear, setSchoolYear] = useState(SCHOOL_YEARS[11]);
     const [difficulty, setDifficulty] = useState(DIFFICULTY_LEVELS[1]); // Default 'Médio'
     const [bloomLevel, setBloomLevel] = useState(DIFFICULTY_TO_BLOOM_MAP[DIFFICULTY_LEVELS[1]][0]); // Default 'Aplicar'
     const [constructionType, setConstructionType] = useState(CONSTRUCTION_TYPES[0]);
@@ -332,6 +351,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             }
 
             const commonPromptPart = `
+                - Nível de Ensino (Série/Ano): ${schoolYear}
                 - Área de Conhecimento: ${selectedArea}
                 - Disciplina: ${selectedDiscipline}
                 - Nível de Dificuldade: ${difficulty}
@@ -463,6 +483,9 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                                             Área: <span className="font-semibold">{selectedArea}</span>
                                         </p>
                                     </div>
+                                    <div className="sm:col-span-2">
+                                        <CustomDropdown id="schoolYear" label="Série/Ano" options={SCHOOL_YEARS} selectedValue={schoolYear} onSelect={setSchoolYear} />
+                                    </div>
                                     <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} />
                                     <CustomDropdown id="construction" label="Tipo de Construção" options={CONSTRUCTION_TYPES} selectedValue={constructionType} onSelect={setConstructionType} />
                                 </div>
@@ -484,7 +507,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                         <div className="space-y-4 pt-4 border-t border-slate-200">
                              <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-600">
                                 <p>
-                                    Você irá gerar <strong className="text-slate-800">{numQuestions} questão(ões) {questionType === 'objective' ? 'objetiva(s)' : 'subjetiva(s)'}</strong> de <strong className="text-slate-800">{selectedDiscipline}</strong>,
+                                    Você irá gerar <strong className="text-slate-800">{numQuestions} questão(ões) {questionType === 'objective' ? 'objetiva(s)' : 'subjetiva(s)'}</strong> de <strong className="text-slate-800">{selectedDiscipline}</strong> para <strong className="text-slate-800">{schoolYear}</strong>,
                                     nível <strong className="text-slate-800">{difficulty}</strong>{topic.trim() ? <> sobre <strong className="text-slate-800">{topic.trim()}</strong></> : ''}.
                                 </p>
                             </div>
@@ -914,6 +937,83 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
             showNotification('Prova excluída com sucesso.', 'success');
         }
     };
+
+    const handleGeneratePdf = (examToPrint: Exam) => {
+        if (typeof jspdf === 'undefined') {
+            showNotification('A biblioteca de geração de PDF não foi carregada.', 'error');
+            return;
+        }
+
+        const { jsPDF } = jspdf;
+        const doc = new jsPDF();
+
+        // Sanitize HTML content
+        const sanitize = (text: string) => {
+            const element = document.createElement('div');
+            element.innerText = text;
+            return element.innerHTML;
+        };
+
+        let htmlContent = `
+            <style>
+                body { font-family: 'Helvetica', 'sans-serif'; line-height: 1.6; color: #333; }
+                h1 { text-align: center; margin-bottom: 20px; font-size: 24px; color: #000; }
+                .question { margin-bottom: 20px; page-break-inside: avoid; }
+                .question-header { font-weight: bold; margin-bottom: 8px; }
+                .stem { margin-bottom: 8px; white-space: pre-wrap; word-wrap: break-word; }
+                .options { list-style-type: upper-alpha; padding-left: 25px; margin: 0; }
+                .options li { margin-bottom: 5px; }
+                .answer-key { margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px; page-break-before: always; }
+                h2 { font-size: 20px; color: #000; }
+                .answer-key ol { list-style-type: none; padding-left: 0; }
+                .answer-key li { margin-bottom: 5px; }
+            </style>
+            <h1>${sanitize(examToPrint.name)}</h1>
+        `;
+
+        const examQuestions = examToPrint.questionIds
+            .map(id => questions.find(q => q.id === id))
+            .filter((q): q is Question => !!q);
+        
+        examQuestions.forEach((q, index) => {
+            htmlContent += `
+                <div class="question">
+                    <p class="question-header">Questão ${index + 1}:</p>
+                    <div class="stem">${sanitize(q.stem)}</div>
+            `;
+            if (q.type === 'objective' && examToPrint.generationOptions?.includeOptions && q.options) {
+                htmlContent += '<ol class="options">';
+                q.options.forEach(opt => {
+                    htmlContent += `<li>${sanitize(opt)}</li>`;
+                });
+                htmlContent += '</ol>';
+            }
+            htmlContent += '</div>';
+        });
+
+        if (examToPrint.generationOptions?.includeAnswerKey) {
+            htmlContent += `<div class="answer-key"><h2>Gabarito</h2><ol>`;
+            examQuestions.forEach((q, index) => {
+                let answer = 'Resposta dissertativa';
+                if (q.type === 'objective' && typeof q.answerIndex === 'number') {
+                    answer = String.fromCharCode(65 + q.answerIndex);
+                }
+                htmlContent += `<li><strong>Questão ${index + 1}:</strong> ${answer}</li>`;
+            });
+            htmlContent += `</ol></div>`;
+        }
+
+        doc.html(htmlContent, {
+            callback: function (doc: any) {
+                doc.save(`${examToPrint.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+                showNotification('PDF gerado com sucesso!', 'success');
+            },
+            x: 15,
+            y: 15,
+            width: 180,
+            windowWidth: 800
+        });
+    };
     
     const addQuestionToExam = (questionId: string) => {
         if (!questionIdsInExam.includes(questionId)) {
@@ -941,7 +1041,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
     
     if (editingExam) {
         return (
-            <div className="bg-white p-4 sm:p-6 rounded-lg border border-slate-200">
+            <div className="bg-white p-4 sm:p-6 rounded-lg border border-slate-200 pb-24 lg:pb-6">
                 {/* Header: Name input and Top Actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 pb-4 border-b border-slate-200">
                     <input
@@ -951,14 +1051,14 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                         placeholder="Nome da Prova"
                         className="text-xl font-bold text-slate-800 focus:ring-cyan-500 focus:border-cyan-500 block w-full sm:w-1/2 shadow-sm sm:text-lg border-slate-300 rounded-md"
                     />
-                    <div className="flex items-center gap-2">
-                        <button onClick={cancelEditing} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md w-1/2 sm:w-auto">Cancelar</button>
-                        <button onClick={handleSaveExam} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm w-1/2 sm:w-auto">Salvar Prova</button>
+                     <div className="hidden sm:flex items-center gap-2">
+                        <button onClick={cancelEditing} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md">Cancelar</button>
+                        <button onClick={handleSaveExam} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm">Salvar Prova</button>
                     </div>
                 </div>
 
                 <fieldset className="mb-6 mt-2 p-4 border border-slate-200 rounded-md">
-                    <legend className="text-md font-semibold text-slate-800 px-2">Opções de Geração</legend>
+                    <legend className="text-md font-semibold text-slate-800 px-2">Opções de Geração do PDF</legend>
                     <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 pt-2">
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -985,7 +1085,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                     {/* Questions in Exam */}
                     <div className="space-y-3 flex flex-col">
                         <h3 className="font-semibold text-slate-700">Questões na Prova ({questionsInCurrentExam.length})</h3>
-                        <div className="border border-slate-200 rounded-md p-2 flex-grow max-h-96 overflow-y-auto custom-scrollbar space-y-2">
+                        <div className="border border-slate-200 rounded-md p-2 flex-grow max-h-64 sm:max-h-96 overflow-y-auto custom-scrollbar space-y-2">
                            {questionsInCurrentExam.length > 0 ? questionsInCurrentExam.map(q => (
                                <div key={q.id} className="p-2.5 bg-slate-50 rounded-md flex justify-between items-center gap-2">
                                    <p className="text-sm text-slate-700 font-medium flex-1 truncate" title={q.stem}>{q.stem}</p>
@@ -1011,7 +1111,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                             placeholder="Buscar por enunciado ou disciplina..."
                             className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md"
                         />
-                        <div className="border border-slate-200 rounded-md p-2 flex-grow max-h-96 overflow-y-auto custom-scrollbar space-y-2">
+                        <div className="border border-slate-200 rounded-md p-2 flex-grow max-h-64 sm:max-h-96 overflow-y-auto custom-scrollbar space-y-2">
                             {availableQuestions.length > 0 ? availableQuestions.map(q => (
                                <div key={q.id} className="p-2.5 bg-white rounded-md flex justify-between items-center gap-2 hover:bg-slate-50 transition-colors duration-150">
                                    <div className="flex-1 min-w-0">
@@ -1031,10 +1131,10 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                     </div>
                 </div>
 
-                {/* Bottom Actions - for better mobile UX */}
-                <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
-                    <button onClick={cancelEditing} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md">Cancelar</button>
-                    <button onClick={handleSaveExam} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm">Salvar Prova</button>
+                {/* Sticky Footer for Mobile */}
+                <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 p-3 flex items-center justify-end gap-3 lg:hidden z-20">
+                    <button onClick={cancelEditing} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md w-1/2">Cancelar</button>
+                    <button onClick={handleSaveExam} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm w-1/2">Salvar Prova</button>
                 </div>
             </div>
         );
@@ -1056,14 +1156,15 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
             ) : (
                 <ul className="divide-y divide-slate-200">
                     {exams.map(exam => (
-                        <li key={exam.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                            <div>
-                                <p className="font-medium text-slate-800">{exam.name}</p>
+                        <li key={exam.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 group">
+                            <div onClick={() => startEditingExam(exam)} className="flex-grow cursor-pointer">
+                                <p className="font-medium text-slate-800 group-hover:text-cyan-700 transition-colors">{exam.name}</p>
                                 <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
                             </div>
-                            <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0">
-                                <button onClick={() => startEditingExam(exam)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md">Editar</button>
-                                <button onClick={() => handleDeleteExam(exam.id)} className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md">Excluir</button>
+                             <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0 mt-2 sm:mt-0">
+                                <button onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam); }} className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors">Gerar PDF</button>
+                                <button onClick={(e) => { e.stopPropagation(); startEditingExam(exam); }} className="px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors">Editar</button>
+                                <button onClick={(e) => { e.stopPropagation(); handleDeleteExam(exam.id); }} className="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors">Excluir</button>
                             </div>
                         </li>
                     ))}
