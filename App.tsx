@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Navigate, useParams, Link, useNavigate } from 'react-router-dom';
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
@@ -633,6 +632,39 @@ interface QuestionBankViewProps {
 
 const QUESTIONS_PER_PAGE = 10;
 
+const getPaginationItems = (currentPage: number, totalPages: number): (number | string)[] => {
+    if (totalPages <= 7) { // Se 7 ou menos páginas, mostra todas
+        return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const pagesToShow = new Set<number>();
+    pagesToShow.add(1);
+    pagesToShow.add(totalPages);
+    pagesToShow.add(currentPage);
+
+    for (let i = -1; i <= 1; i++) { // Adiciona vizinhos da página atual
+        const page = currentPage + i;
+        if (page > 1 && page < totalPages) {
+            pagesToShow.add(page);
+        }
+    }
+
+    const sortedPages = Array.from(pagesToShow).sort((a, b) => a - b);
+    const result: (number | string)[] = [];
+    let lastPage = 0;
+
+    for (const page of sortedPages) {
+        if (lastPage !== 0 && page > lastPage + 1) {
+            result.push('...');
+        }
+        result.push(page);
+        lastPage = page;
+    }
+
+    return result;
+};
+
+
 const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuestions, showNotification, onEditQuestion }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [filterDiscipline, setFilterDiscipline] = useState('Todas');
@@ -681,6 +713,8 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     const totalPages = Math.ceil(filteredQuestions.length / QUESTIONS_PER_PAGE);
     const startIndex = (currentPage - 1) * QUESTIONS_PER_PAGE;
     const currentQuestions = filteredQuestions.slice(startIndex, startIndex + QUESTIONS_PER_PAGE);
+    const paginationItems = useMemo(() => getPaginationItems(currentPage, totalPages), [currentPage, totalPages]);
+
 
     const handleToggleFavorite = (questionId: string) => {
         const updatedQuestions = questions.map(q =>
@@ -1050,20 +1084,54 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                         ))}
                     </ul>
                     {totalPages > 1 && (
-                        <nav className="flex items-center justify-between border-t border-slate-200 px-4 sm:px-0 pt-4 mt-4">
-                             <div className="w-0 flex-1 flex">
-                                <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    Anterior
-                                </button>
+                        <nav className="flex items-center justify-between border-t border-slate-200 pt-4 mt-4">
+                            <button 
+                                onClick={() => goToPage(currentPage - 1)} 
+                                disabled={currentPage === 1} 
+                                className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Anterior
+                            </button>
+                            
+                            <div className="hidden md:flex items-center gap-1">
+                                {paginationItems.map((item, index) => {
+                                    if (typeof item === 'string') {
+                                        return (
+                                            <span key={`ellipsis-${index}`} className="px-3 py-2 text-sm font-medium text-slate-500">
+                                                {item}
+                                            </span>
+                                        );
+                                    }
+                                    return (
+                                        <button
+                                            key={item}
+                                            onClick={() => goToPage(item)}
+                                            className={`h-9 w-9 flex items-center justify-center border border-slate-300 text-sm font-medium rounded-md transition-colors ${
+                                                currentPage === item
+                                                    ? 'bg-cyan-600 text-white border-cyan-600 z-10'
+                                                    : 'bg-white text-slate-700 hover:bg-slate-50'
+                                            }`}
+                                            aria-current={currentPage === item ? 'page' : undefined}
+                                        >
+                                            {item}
+                                        </button>
+                                    );
+                                })}
                             </div>
-                            <div className="hidden md:flex">
-                                <p className="text-sm text-slate-700">Página <span className="font-medium">{currentPage}</span> de <span className="font-medium">{totalPages}</span></p>
+
+                            <div className="md:hidden">
+                                <p className="text-sm text-slate-700">
+                                    Página <span className="font-medium">{currentPage}</span> de <span className="font-medium">{totalPages}</span>
+                                </p>
                             </div>
-                            <div className="w-0 flex-1 flex justify-end">
-                                <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} className="ml-3 relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    Próxima
-                                </button>
-                            </div>
+
+                            <button 
+                                onClick={() => goToPage(currentPage + 1)} 
+                                disabled={currentPage === totalPages} 
+                                className="relative inline-flex items-center px-4 py-2 border border-slate-300 text-sm font-medium rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Próxima
+                            </button>
                         </nav>
                     )}
                 </>
