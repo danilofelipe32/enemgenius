@@ -245,6 +245,52 @@ const ExplanationModal: React.FC<ExplanationModalProps> = ({ isOpen, onClose, qu
     );
 };
 
+// --- Info Modal Component ---
+const InfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center p-4 transition-opacity duration-300" onClick={onClose}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <header className="p-4 border-b border-slate-200 flex justify-between items-center flex-shrink-0">
+                    <h3 className="text-lg font-bold text-slate-800">Sobre o ENEM Genius PWA</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-full" aria-label="Fechar">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </header>
+                <main className="p-6 overflow-y-auto custom-scrollbar space-y-4">
+                    <p className="text-slate-600">
+                        Um PWA (Progressive Web App) com inteligência artificial para gerar questões e provas de alta qualidade para o ENEM, com base na Taxonomia de Bloom.
+                    </p>
+                    <div>
+                        <h4 className="font-semibold text-slate-800 mb-2">Funcionalidades Principais:</h4>
+                        <ul className="list-disc list-inside space-y-1 text-slate-600">
+                            <li><strong>Gerador de Questões:</strong> Crie questões objetivas e dissertativas personalizadas com parâmetros detalhados.</li>
+                            <li><strong>Banco de Questões:</strong> Armazene, filtre, edite e gerencie todas as suas questões em um só lugar.</li>
+                            <li><strong>Criador de Provas:</strong> Monte provas e avaliações selecionando questões do seu banco.</li>
+                            <li><strong>Base de Conhecimento (RAG):</strong> Faça upload de documentos (.pdf, .docx, .txt) para gerar questões baseadas em um conteúdo específico.</li>
+                        </ul>
+                    </div>
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-600">
+                        <p><strong>Tecnologia:</strong> Este projeto utiliza a APIFreeLLM para a geração de conteúdo por IA e IndexedDB/LocalStorage para armazenamento local no seu navegador, garantindo que seus dados permaneçam privados.</p>
+                    </div>
+                </main>
+                <footer className="p-4 bg-slate-50 border-t border-slate-200 text-center flex-shrink-0">
+                    <a 
+                        href="https://wa.me/5584999780963" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-slate-500 hover:text-cyan-700 transition-colors"
+                    >
+                        Produzido por Danilo Arruda
+                    </a>
+                </footer>
+            </div>
+        </div>
+    );
+};
 
 // --- Question Generator View ---
 
@@ -2128,6 +2174,7 @@ const AppContent: React.FC = () => {
     const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const location = useLocation();
 
@@ -2276,6 +2323,8 @@ const AppContent: React.FC = () => {
                 onSave={handleUpdateQuestion}
                 showNotification={showNotification}
             />
+            
+            <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} />
 
             <Sidebar />
 
@@ -2283,8 +2332,20 @@ const AppContent: React.FC = () => {
                 <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"></div>
             )}
             
-            <div className="lg:ml-64 transition-all duration-300 ease-in-out">
-                <header className="bg-white shadow-sm sticky top-0 z-30 lg:hidden">
+            <div className="lg:ml-64 transition-all duration-300 ease-in-out relative">
+                <div className="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 z-30">
+                    <button
+                        onClick={() => setIsInfoModalOpen(true)}
+                        className="h-10 w-10 bg-white rounded-full shadow-md flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-cyan-600 transition-colors"
+                        aria-label="Informações sobre o aplicativo"
+                    >
+                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                       </svg>
+                    </button>
+                </div>
+
+                <header className="bg-white shadow-sm sticky top-0 z-20 lg:hidden">
                      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex items-center justify-between h-16">
                             <button
