@@ -1,0 +1,5 @@
+{
+  "name": "ENEM Genius PWA",
+  "description": "Um PWA (Progressive Web App) com inteligência artificial para gerar questões e provas de alta qualidade para o ENEM, com base na Taxonomia de Bloom. Inclui um banco de questões, criador de provas e uma base de conhecimento (RAG) para geração contextualizada.",
+  "requestFramePermissions": []
+}
