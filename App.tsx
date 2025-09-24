@@ -1035,7 +1035,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
 
     return (
         <div className="bg-white p-6 rounded-lg border border-slate-200">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex items-center gap-4">
                     <div className="bg-cyan-100 text-cyan-600 p-3 rounded-full">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
