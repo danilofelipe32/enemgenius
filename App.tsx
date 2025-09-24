@@ -1650,7 +1650,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'download'); }} 
                                         disabled={isAnyProcessing}
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50 w-[60px]"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50 w-[80px]"
                                         aria-label={`Gerar PDF da prova ${exam.name}`}
                                     >
                                         {isDownloading ? <Spinner size="small" /> : (
