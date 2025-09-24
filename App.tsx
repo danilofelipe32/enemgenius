@@ -781,6 +781,10 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
             return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
         });
     }, [questions, filterDiscipline, filterBloom, filterFavorited, filterSchoolYear, filterTopic, sortOrder]);
+    
+    const totalQuestions = filteredQuestions.length;
+    const favoritedQuestionsCount = filteredQuestions.filter(q => q.favorited).length;
+
 
     useEffect(() => {
         setCurrentPage(1);
@@ -1031,6 +1035,31 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
 
     return (
         <div className="bg-white p-6 rounded-lg border border-slate-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex items-center gap-4">
+                    <div className="bg-cyan-100 text-cyan-600 p-3 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-slate-500">Total de Questões (filtrado)</p>
+                        <p className="text-2xl font-bold text-slate-800">{totalQuestions}</p>
+                    </div>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex items-center gap-4">
+                     <div className="bg-amber-100 text-amber-600 p-3 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-slate-500">Questões Favoritas</p>
+                        <p className="text-2xl font-bold text-slate-800">{favoritedQuestionsCount}</p>
+                    </div>
+                </div>
+            </div>
+
             <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6 pb-6 border-b border-slate-200">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                     <CustomDropdown
@@ -1119,9 +1148,10 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
             ) : (
                 <>
                     <ul className="divide-y divide-slate-200">
-                        {currentQuestions.map(q => (
+                        {currentQuestions.map((q, index) => (
                             <li key={q.id} className="py-4 group">
                                 <div className="cursor-pointer" onClick={() => onEditQuestion(q)}>
+                                     <p className="font-semibold text-slate-600 mb-2">Questão {startIndex + index + 1}</p>
                                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                                         <span className="inline-block bg-sky-100 text-sky-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{DISCIPLINE_TO_AREA_MAP[q.discipline] || 'N/A'}</span>
                                         <span className="inline-block bg-teal-100 text-teal-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.discipline}</span>
@@ -1691,7 +1721,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <p className="font-medium text-slate-800">{exam.name}</p>
                                     <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'} &bull; {formatDate(exam.creationDate)}</p>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto mt-3 sm:mt-0">
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full sm:flex sm:w-auto mt-3 sm:mt-0">
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'share'); }}
                                         disabled={isAnyProcessing}
