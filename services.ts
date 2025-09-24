@@ -6,11 +6,11 @@ import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent, ApiFreeLLMResp
 // It handles the specific response structure including success, error, and rate-limiting with retries.
 
 // NOTA: Um proxy CORS é usado para contornar as restrições de segurança do navegador.
-// O erro "Failed to fetch" ocorre porque a API de destino (api.api-free.workers.dev)
-// não envia os cabeçalhos CORS necessários (ex: Access-Control-Allow-Origin).
-// O proxy adiciona esses cabeçalhos, permitindo que o navegador processe a resposta.
-// Esta é uma solução comum para aplicações do lado do cliente que consomem APIs de terceiros.
-const API_FREE_LLM_ENDPOINT = 'https://corsproxy.io/?https://api.api-free.workers.dev/';
+// O erro "Failed to fetch" ou erros de rede (ex: 530) ocorrem porque a API de destino
+// não envia os cabeçalhos CORS necessários (ex: Access-Control-Allow-Origin) ou porque
+// o serviço de proxy está instável. Usamos um proxy para adicionar esses cabeçalhos.
+// Trocamos de `corsproxy.io` para `thingproxy.freeboard.io` para maior estabilidade.
+const API_FREE_LLM_ENDPOINT = 'https://thingproxy.freeboard.io/fetch/https://api.api-free.workers.dev/';
 
 export const apiService = {
   async generate(prompt: string, schema?: any): Promise<string> {
