@@ -241,11 +241,6 @@ const CONSTRUCTION_TYPES = [
     "Interdisciplinaridade", "Atualidades/contexto social", "Experimentos", "Textos culturais/literários",
 ];
 const DIFFICULTY_LEVELS = ['Fácil', 'Médio', 'Difícil'];
-const DIFFICULTY_TO_BLOOM_MAP: { [key: string]: string[] } = {
-  'Fácil': ['Lembrar', 'Entender'],
-  'Médio': ['Aplicar', 'Analisar'],
-  'Difícil': ['Avaliar', 'Criar'],
-};
 
 const SCHOOL_YEARS = [
   "1º ano do Ensino Fundamental",
@@ -288,11 +283,20 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
     const [selectedArea, setSelectedArea] = useState(DISCIPLINE_TO_AREA_MAP[ALL_DISCIPLINES[0]]);
     const [schoolYear, setSchoolYear] = useState(SCHOOL_YEARS[11]);
     const [difficulty, setDifficulty] = useState(DIFFICULTY_LEVELS[1]); // Default 'Médio'
-    const [bloomLevel, setBloomLevel] = useState(DIFFICULTY_TO_BLOOM_MAP[DIFFICULTY_LEVELS[1]][0]); // Default 'Aplicar'
+    const [bloomLevel, setBloomLevel] = useState(BLOOM_LEVELS[2]); // 'Aplicar' as default
     const [constructionType, setConstructionType] = useState(CONSTRUCTION_TYPES[0]);
     const [numQuestions, setNumQuestions] = useState(3);
     const [topic, setTopic] = useState('');
     const [questionType, setQuestionType] = useState<'objective' | 'subjective'>('objective');
+
+    const BLOOM_LEVEL_COLORS: { [key: string]: string } = {
+        'Lembrar': 'bg-slate-100 text-slate-800',
+        'Entender': 'bg-green-100 text-green-800',
+        'Aplicar': 'bg-cyan-100 text-cyan-800',
+        'Analisar': 'bg-purple-100 text-purple-800',
+        'Avaliar': 'bg-orange-100 text-orange-800',
+        'Criar': 'bg-red-100 text-red-800',
+    };
 
     useEffect(() => {
         let interval: number;
@@ -315,9 +319,6 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
 
     const handleDifficultyChange = (newDifficulty: string) => {
         setDifficulty(newDifficulty);
-        const possibleBloomLevels = DIFFICULTY_TO_BLOOM_MAP[newDifficulty];
-        const randomBloomLevel = possibleBloomLevels[Math.floor(Math.random() * possibleBloomLevels.length)];
-        setBloomLevel(randomBloomLevel);
     };
 
     const handleGenerateQuestions = async (e: React.FormEvent) => {
@@ -502,11 +503,32 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                                     <div className="sm:col-span-2">
                                         <CustomDropdown id="schoolYear" label="Série/Ano" options={SCHOOL_YEARS} selectedValue={schoolYear} onSelect={setSchoolYear} tooltip="Selecione o ano letivo do aluno para adequar a complexidade da questão." />
                                     </div>
+                                    <div className="sm:col-span-2">
+                                        <div className="flex items-center gap-1.5 mb-2">
+                                            <label className="block text-sm font-medium text-slate-700">Níveis da Taxonomia de Bloom</label>
+                                            <InfoTooltip text="Selecione o nível cognitivo que a questão deve avaliar, segundo a Taxonomia de Bloom." />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {BLOOM_LEVELS.map(level => (
+                                                <button
+                                                    key={level}
+                                                    type="button"
+                                                    onClick={() => setBloomLevel(level)}
+                                                    className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-all duration-200 ${
+                                                        BLOOM_LEVEL_COLORS[level]
+                                                    } ${
+                                                        bloomLevel === level
+                                                            ? 'ring-2 ring-offset-2 ring-cyan-500 shadow-md'
+                                                            : 'opacity-80 hover:opacity-100'
+                                                    }`}
+                                                >
+                                                    {level}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
                                     <div>
-                                        <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} tooltip="Define a dificuldade geral da questão, ajustando automaticamente o nível de Bloom correspondente." />
-                                        <p className="mt-1 text-xs text-slate-500">
-                                            Nível de Bloom: <span className="font-semibold text-slate-700">{bloomLevel}</span>
-                                        </p>
+                                        <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} tooltip="Define a dificuldade geral da questão." />
                                     </div>
                                     <CustomDropdown id="construction" label="Tipo de Construção" options={CONSTRUCTION_TYPES} selectedValue={constructionType} onSelect={setConstructionType} tooltip="Determina o formato e a abordagem da questão, como interpretação de texto, cálculo, ou análise de contexto social." />
                                 </div>
