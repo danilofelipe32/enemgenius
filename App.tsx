@@ -396,7 +396,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 **REGRAS OBRIGATÓRIAS DE CRIAÇÃO:**
                 1.  **ALINHAMENTO COM A BNCC:** A questão DEVE ser estritamente alinhada às competências e habilidades da BNCC para a disciplina e o ano escolar especificados. A abordagem deve ser interdisciplinar sempre que possível, conectando o tópico a outras áreas do conhecimento.
                 2.  **CONTEXTUALIZAÇÃO PROFUNDA:** CADA QUESTÃO DEVE APRESENTAR UM CENÁRIO. O enunciado ('stem') precisa conter um texto de apoio, um poema, uma situação-problema, um trecho de notícia, ou a descrição de um elemento visual (gráfico, tabela, imagem). A questão não pode ser uma pergunta direta e descontextualizada. O objetivo é avaliar a capacidade do aluno de analisar, interpretar e aplicar conhecimento em um contexto significativo.
-                3.  **SUPORTE VISUAL (QUANDO APLICÁVEL):** Se a questão exigir um elemento visual (gráfico, imagem, charge), NÃO CRIE A IMAGEM. Em vez disso, descreva-a de forma rica e detalhada para que uma IA de imagem possa gerá-la. Formate a descrição da seguinte forma: [DESCRIÇÃO PARA GERAR IMAGEM: ...descrição detalhada aqui...]. O comando da questão deve vir após essa descrição.
+                3.  **SUPORTE VISUAL (QUANDO APLICÁvel):** Se a questão exigir um elemento visual (gráfico, imagem, charge), NÃO CRIE A IMAGEM. Em vez disso, descreva-a de forma rica e detalhada para que uma IA de imagem possa gerá-la. Formate a descrição da seguinte forma: [DESCRIÇÃO PARA GERAR IMAGEM: ...descrição detalhada aqui...]. O comando da questão deve vir após essa descrição.
                 
                 **REGRAS DE FORMATAÇÃO DA SAÍDA:**
                 - Sua resposta DEVE ser um array JSON válido, sem nenhum texto introdutório, final ou explicações.
@@ -1631,11 +1631,11 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <p className="font-medium text-slate-800">{exam.name}</p>
                                     <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
                                 </div>
-                                <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0 mt-2 sm:mt-0">
+                                <div className="flex items-stretch gap-2 w-full sm:w-auto mt-3 sm:mt-0">
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'share'); }}
                                         disabled={isAnyProcessing}
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors disabled:opacity-50 w-[110px]"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial sm:w-[110px]"
                                         aria-label={`Compartilhar prova ${exam.name}`}
                                     >
                                         {isSharing ? <Spinner size="small" /> : (
@@ -1650,7 +1650,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'download'); }} 
                                         disabled={isAnyProcessing}
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50 w-[80px]"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial sm:w-[80px]"
                                         aria-label={`Gerar PDF da prova ${exam.name}`}
                                     >
                                         {isDownloading ? <Spinner size="small" /> : (
@@ -1665,7 +1665,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); startEditingExam(exam); }}
                                         disabled={isAnyProcessing} 
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors disabled:opacity-50"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial"
                                         aria-label={`Editar prova ${exam.name}`}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -1677,7 +1677,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleDeleteExam(exam.id); }}
                                         disabled={isAnyProcessing} 
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial"
                                         aria-label={`Excluir prova ${exam.name}`}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
