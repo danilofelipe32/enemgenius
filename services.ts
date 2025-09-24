@@ -1,50 +1,55 @@
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
-import { GoogleGenAI } from "@google/genai";
 
 // --- API Service ---
-// Serviço para interagir com a API oficial do Google Gemini.
-// Esta abordagem substitui a ApiFreeLLM para garantir estabilidade, performance
-// e eliminar a necessidade de proxies CORS.
+// Serviço para interagir com a APIFreeLLM.
+// Esta abordagem oferece uso ilimitado e gratuito para prototipagem e desenvolvimento.
 
-// Inicializa o cliente Gemini. A chave de API deve estar disponível
-// como uma variável de ambiente (process.env.API_KEY).
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// URL da API
+const API_URL = "https://apifreellm.com/api/chat";
 
 export const apiService = {
   async generate(prompt: string): Promise<string> {
     try {
-      // Verifica se o prompt está solicitando uma saída JSON para configurar a API adequadamente.
-      const isJsonPrompt = prompt.includes("Sua resposta DEVE ser um array JSON válido");
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          // Usa o modo JSON nativo do Gemini quando aplicável para maior confiabilidade
-          ...(isJsonPrompt && { responseMimeType: "application/json" }),
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          message: prompt,
+        }),
       });
 
-      const text = response.text;
-
-      if (!text || text.trim() === '') {
-        throw new Error("A API retornou uma resposta vazia, mas com status de sucesso.");
+      // APIFreeLLM sempre retorna 200, então precisamos verificar o corpo da resposta.
+      if (!response.ok) {
+          // Isso lida com erros de rede, não com erros da API em si.
+          throw new Error(`Erro de rede: ${response.status} ${response.statusText}`);
       }
-      return text;
+
+      const data = await response.json();
+
+      switch (data.status) {
+        case 'success':
+          if (!data.response || data.response.trim() === '') {
+            throw new Error("A API retornou uma resposta vazia, mas com status de sucesso.");
+          }
+          return data.response;
+        case 'rate_limited':
+          throw new Error(`Limite de requisições excedido. Por favor, aguarde ${data.retry_after} segundos.`);
+        case 'error':
+          // O campo 'error' contém a mensagem de erro da API.
+          throw new Error(data.error || 'Ocorreu um erro desconhecido na API.');
+        default:
+          throw new Error(`Status de resposta da API desconhecido: ${data.status}`);
+      }
 
     } catch (error) {
-      // Captura erros da API Gemini ou de rede.
-      console.error("Falha na requisição à API Gemini:", error);
-      const originalErrorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
+      // Captura erros da API ou de rede.
+      console.error("Falha na requisição à APIFreeLLM:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
       
-      if (originalErrorMessage.includes('API key not valid')) {
-         throw new Error("A chave de API para o serviço de IA não é válida. Verifique a configuração.");
-      }
-      if (originalErrorMessage.toLowerCase().includes('fetch')) {
-          throw new Error("Erro de rede ao se comunicar com a API. Verifique sua conexão com a internet.");
-      }
-      
-      throw new Error(`Falha ao se comunicar com o serviço de IA: ${originalErrorMessage}.`);
+      // Re-lança o erro para que a UI possa capturá-lo e exibi-lo.
+      throw new Error(`Falha ao se comunicar com o serviço de IA: ${errorMessage}`);
     }
   }
 };
