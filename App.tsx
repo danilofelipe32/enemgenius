@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { HashRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, NavLink, useLocation, Navigate, useParams, Link, useNavigate } from 'react-router-dom';
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
 import { storageService, apiService, fileParserService, ragService } from './services';
 import { ALL_DISCIPLINES, DISCIPLINE_TO_AREA_MAP, KNOWLEDGE_AREAS } from './constants';
@@ -914,6 +914,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
         includeOptions: true,
         includeAnswerKey: true,
     });
+    const navigate = useNavigate();
 
     const startNewExam = () => {
         setEditingExam({ id: crypto.randomUUID(), name: '', questionIds: [] });
@@ -1192,7 +1193,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                 <ul className="divide-y divide-slate-200">
                     {exams.map(exam => (
                         <li key={exam.id} className="py-3 px-2 -mx-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50/75 rounded-lg transition-colors duration-150">
-                            <div onClick={() => startEditingExam(exam)} className="flex-grow cursor-pointer">
+                            <div onClick={() => navigate(`/exams/${exam.id}`)} className="flex-grow cursor-pointer">
                                 <p className="font-medium text-slate-800">{exam.name}</p>
                                 <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
                             </div>
@@ -1236,6 +1237,111 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
         </div>
     );
 };
+
+// --- Exam Detail View ---
+interface ExamDetailViewProps {
+    exams: Exam[];
+    questions: Question[];
+    setQuestions: (updatedQuestions: Question[]) => void;
+    showNotification: (message: string, type: 'success' | 'error') => void;
+}
+
+const ExamDetailView: React.FC<ExamDetailViewProps> = ({ exams, questions, setQuestions, showNotification }) => {
+    const { examId } = useParams<{ examId: string }>();
+    const [questionToEdit, setQuestionToEdit] = useState<Question | null>(null);
+
+    const exam = useMemo(() => exams.find(e => e.id === examId), [exams, examId]);
+    const examQuestions = useMemo(() => {
+        if (!exam) return [];
+        return exam.questionIds
+            .map(id => questions.find(q => q.id === id))
+            .filter((q): q is Question => !!q);
+    }, [exam, questions]);
+
+    const handleSaveQuestionUpdate = (updatedQuestion: Question) => {
+        const updatedQuestions = questions.map(q =>
+            q.id === updatedQuestion.id ? updatedQuestion : q
+        );
+        setQuestions(updatedQuestions);
+        setQuestionToEdit(null);
+        showNotification("Questão atualizada com sucesso!", 'success');
+    };
+
+    if (!exam) {
+        return (
+            <div className="text-center p-8 bg-white rounded-lg border">
+                <h2 className="text-xl font-bold text-red-600">Prova não encontrada</h2>
+                <p className="text-slate-500 mt-2">A prova que você está procurando não existe ou foi excluída.</p>
+                <Link to="/exams" className="mt-4 inline-block px-4 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700">
+                    Voltar para a lista de provas
+                </Link>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <div className="bg-white p-6 rounded-lg border border-slate-200">
+                <div className="mb-6 pb-4 border-b border-slate-200">
+                    <Link to="/exams" className="text-sm text-cyan-600 hover:underline flex items-center gap-1 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                        Voltar para Provas
+                    </Link>
+                    <h2 className="text-2xl font-bold text-slate-800">{exam.name}</h2>
+                    <p className="text-slate-500">{examQuestions.length} {examQuestions.length === 1 ? 'questão' : 'questões'}</p>
+                </div>
+
+                {examQuestions.length > 0 ? (
+                    <ul className="space-y-6">
+                        {examQuestions.map((q, index) => (
+                            <li key={q.id} className="bg-slate-50 p-4 rounded-md border border-slate-200">
+                                <p className="font-bold text-slate-600 mb-2">Questão {index + 1}</p>
+                                <p className="text-slate-800 font-medium whitespace-pre-wrap">{q.stem}</p>
+                                {q.type === 'objective' && q.options && typeof q.answerIndex === 'number' && (
+                                    <>
+                                        <ol className="list-[upper-alpha] list-inside pl-2 mt-3 space-y-1 text-slate-600">
+                                            {q.options.map((option, optIndex) => <li key={optIndex} className={q.answerIndex === optIndex ? 'font-semibold text-cyan-800' : ''}>{option}</li>)}
+                                        </ol>
+                                        <p className="text-sm font-bold text-slate-800 mt-2">Gabarito: {String.fromCharCode(65 + q.answerIndex)}</p>
+                                    </>
+                                )}
+                                {q.type === 'subjective' && q.expectedAnswer && (
+                                    <div className="mt-3 p-3 bg-slate-100 border-l-4 border-slate-300">
+                                        <p className="text-sm font-semibold text-slate-700">Resposta Esperada:</p>
+                                        <p className="text-slate-600 text-sm whitespace-pre-wrap mt-1">{q.expectedAnswer}</p>
+                                    </div>
+                                )}
+                                <div className="mt-4 flex justify-end">
+                                    <button
+                                        onClick={() => setQuestionToEdit(q)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
+                                        Editar Questão
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <div className="text-center py-10 text-slate-500">
+                        <p>Esta prova ainda não tem questões.</p>
+                        <p className="text-sm">Edite a prova para adicionar questões do seu banco.</p>
+                    </div>
+                )}
+            </div>
+
+            <EditQuestionModal
+                isOpen={!!questionToEdit}
+                onClose={() => setQuestionToEdit(null)}
+                question={questionToEdit}
+                onSave={handleSaveQuestionUpdate}
+                showNotification={showNotification}
+            />
+        </>
+    );
+};
+
 
 // --- Edit Question Modal ---
 interface EditQuestionModalProps {
@@ -1569,7 +1675,7 @@ const AppContent: React.FC = () => {
         </aside>
     );
 
-    const currentPath = location.pathname.replace('/', '') as View;
+    const currentPath = location.pathname.split('/')[1] as View;
 
     return (
         <div className="min-h-screen bg-slate-100 text-slate-800">
@@ -1615,6 +1721,7 @@ const AppContent: React.FC = () => {
                         <Route path="/generator" element={<QuestionGeneratorView addQuestion={addQuestion} showNotification={showNotification} knowledgeFiles={knowledgeFiles} onEditQuestion={handleEditQuestion} />} />
                         <Route path="/bank" element={<QuestionBankView questions={questions} setQuestions={handleSetQuestions} showNotification={showNotification} onEditQuestion={handleEditQuestion} />} />
                         <Route path="/exams" element={<ExamCreatorView exams={exams} setExams={handleSetExams} questions={questions} showNotification={showNotification} />} />
+                        <Route path="/exams/:examId" element={<ExamDetailView exams={exams} questions={questions} setQuestions={handleSetQuestions} showNotification={showNotification} />} />
                         <Route path="/knowledge" element={<KnowledgeBaseView files={knowledgeFiles} setFiles={handleSetKnowledgeFiles} showNotification={showNotification} />} />
                    </Routes>
                 </main>
