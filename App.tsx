@@ -263,37 +263,39 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                     O enunciado ('stem') de cada questão DEVE, obrigatoriamente, conter um texto de apoio ou um contexto de tamanho médio. A questão não deve ser direta, mas sim baseada na análise do contexto apresentado.
                 `;
             }
+            
+            const jsonFormatInstruction = `
+                Sua resposta DEVE ser um array JSON válido, sem nenhum texto introdutório, final ou explicações.
+                NÃO envolva o JSON em blocos de código markdown como \`\`\`json.
+                A resposta deve ser APENAS o array de objetos JSON.
+                O array deve conter exatamente ${numQuestions} objeto(s).
+                A estrutura de cada objeto no array deve ser:
+            ` + (questionType === 'objective'
+                ? `{ "stem": "O enunciado completo da questão aqui.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}" }`
+                : `{ "stem": "O enunciado completo da questão aqui.", "expectedAnswer": "A resposta dissertativa completa aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}" }`
+            );
 
-            const prompt = questionType === 'objective' ? `
-                Aja como um especialista em elaboração de questões para o ENEM. Crie ${numQuestions} questão(ões) de múltipla escolha (A, B, C, D, E) sobre o seguinte tópico:
+            const prompt = `
+                Aja como um especialista em elaboração de questões para o ENEM. Crie ${numQuestions} questão(ões) ${questionType === 'objective' ? 'de múltipla escolha (A, B, C, D, E)' : 'SUBJETIVAS (dissertativas)'} sobre o seguinte tópico:
                 ${commonPromptPart}
                 ${context ? `Utilize o seguinte texto como base de conhecimento para criar as questões:\n---\n${context}\n---` : ''}
                 ${specialInstruction}
-                REGRAS OBRIGATÓRIAS:
-                1. Apenas retorne um array de objetos JSON.
-                2. O array deve conter exatamente ${numQuestions} objetos.
-                3. Não inclua NENHUM texto, formatação ou explicação fora do array JSON.
-                4. Cada objeto deve ter a estrutura: { "stem": "...", "options": ["...", "...", "...", "...", "..."], "answerIndex": 2, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}" }.
-                5. O campo "options" deve ter exatamente 5 strings.
-                6. "answerIndex" deve ser o índice (base 0) da resposta correta.
-                7. Os campos "discipline", "bloomLevel" e "constructionType" DEVEM ser preenchidos com os valores exatos deste prompt.
-            ` : `
-                Aja como um especialista em elaboração de questões para o ENEM. Crie ${numQuestions} questão(ões) SUBJETIVAS (dissertativas) sobre o seguinte tópico:
-                ${commonPromptPart}
-                ${context ? `Utilize o seguinte texto como base de conhecimento para criar as questões:\n---\n${context}\n---` : ''}
-                ${specialInstruction}
-                REGRAS OBRIGATÓRIAS:
-                1. Apenas retorne um array de objetos JSON.
-                2. O array deve conter exatamente ${numQuestions} objetos.
-                3. Não inclua NENHUM texto, formatação ou explicação fora do array JSON.
-                4. Cada objeto deve ter a estrutura: { "stem": "...", "expectedAnswer": "Resposta esperada detalhada.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}" }.
-                5. Os campos "discipline", "bloomLevel" e "constructionType" DEVEM ser preenchidos com os valores exatos deste prompt.
+                REGRAS DE FORMATAÇÃO DA SAÍDA:
+                ${jsonFormatInstruction}
             `;
             
             const responseText = await apiService.generate(prompt);
-            const jsonString = responseText.substring(responseText.indexOf('['), responseText.lastIndexOf(']') + 1);
             
-            const parsedQuestions = JSON.parse(jsonString);
+            // Clean the response to ensure it's valid JSON
+            let cleanedText = responseText.trim();
+            if (cleanedText.startsWith('```json')) {
+                cleanedText = cleanedText.slice(7, -3).trim();
+            } else if (cleanedText.startsWith('`')) {
+                cleanedText = cleanedText.slice(1, -1).trim();
+            }
+
+            const parsedQuestions = JSON.parse(cleanedText);
+            
             const newQuestions: Question[] = parsedQuestions.map((q: any) => ({
                 id: crypto.randomUUID(),
                 stem: q.stem,
@@ -301,9 +303,9 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 answerIndex: q.answerIndex,
                 expectedAnswer: q.expectedAnswer,
                 favorited: false,
-                discipline: q.discipline,
-                bloomLevel: q.bloomLevel,
-                constructionType: q.constructionType,
+                discipline: q.discipline || selectedDiscipline, // Fallback to selected
+                bloomLevel: q.bloomLevel || bloomLevel,
+                constructionType: q.constructionType || constructionType,
                 type: questionType,
             }));
 
@@ -895,7 +897,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                             placeholder="Buscar por enunciado ou disciplina..."
                             className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md"
                         />
-                        <div className="border border-slate-200 rounded-md p-2 h-80 overflow-y-auto custom-scrollbar space-y-2">
+                        <div className="border border-slate-200 rounded-md p-2 h-80 overflow-y-a'uto custom-scrollbar space-y-2">
                             {availableQuestions.map(q => (
                                <div key={q.id} className="p-2 bg-white rounded-md flex justify-between items-start gap-2 hover:bg-slate-50">
                                    <div className="flex-1">
@@ -963,6 +965,7 @@ const App: React.FC = () => {
     const [exams, setExams] = useState<Exam[]>([]);
     const [knowledgeFiles, setKnowledgeFiles] = useState<KnowledgeFile[]>([]);
     const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -1015,8 +1018,13 @@ const App: React.FC = () => {
         alert(`Editando questão: ${question.stem.substring(0, 50)}... (Funcionalidade de edição a ser implementada)`);
         // setEditingQuestion(question);
     };
+    
+    const handleSetView = (view: View) => {
+        setCurrentView(view);
+        setIsSidebarOpen(false);
+    }
 
-    const navItems: { id: View; label: string; icon: JSX.Element }[] = [
+    const navItems: { id: View; label: string; icon: React.ReactElement }[] = [
         { id: 'generator', label: 'Gerador', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" /></svg> },
         { id: 'bank', label: 'Banco de Questões', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" /><path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" /></svg> },
         { id: 'exams', label: 'Criador de Provas', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg> },
@@ -1038,38 +1046,68 @@ const App: React.FC = () => {
         }
     };
     
+    const Sidebar = () => (
+        <aside className={`fixed top-0 left-0 z-50 w-64 h-screen bg-slate-800 text-slate-200 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 ease-in-out`}>
+            <div className="flex items-center justify-center p-4 border-b border-slate-700">
+                 <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+                    💡 ENEM Genius
+                </h1>
+            </div>
+            <nav className="mt-4">
+                {navItems.map((item) => (
+                    <button
+                        key={item.id}
+                        onClick={() => handleSetView(item.id)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left font-medium transition-colors ${
+                            currentView === item.id
+                                ? 'bg-cyan-600 text-white'
+                                : 'hover:bg-slate-700 hover:text-white'
+                        }`}
+                        aria-current={currentView === item.id ? 'page' : undefined}
+                    >
+                        {item.icon}
+                        <span>{item.label}</span>
+                    </button>
+                ))}
+            </nav>
+        </aside>
+    );
+
     return (
         <div className="min-h-screen bg-slate-100 text-slate-800">
             {notification && <Notification message={notification.message} type={notification.type} onDismiss={() => setNotification(null)} />}
-            <header className="bg-white shadow-md sticky top-0 z-40">
-                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center py-3">
-                         <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                           💡 ENEM Genius
-                        </h1>
-                    </div>
-                     <nav className="-mb-px flex space-x-6 border-b border-slate-200" aria-label="Tabs">
-                         {navItems.map((item) => (
+            
+            <Sidebar />
+
+            {isSidebarOpen && (
+                <div onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"></div>
+            )}
+            
+            <div className="lg:ml-64 transition-all duration-300 ease-in-out">
+                <header className="bg-white shadow-sm sticky top-0 z-30 lg:hidden">
+                     <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex items-center justify-between h-16">
                             <button
-                                key={item.id}
-                                onClick={() => setCurrentView(item.id)}
-                                className={`${
-                                    currentView === item.id
-                                        ? 'border-cyan-500 text-cyan-600'
-                                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                                } flex items-center gap-2 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors`}
-                                aria-current={currentView === item.id ? 'page' : undefined}
+                                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                                className="text-slate-500 hover:text-slate-800"
+                                aria-label="Open sidebar"
                             >
-                                {item.icon}
-                                {item.label}
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
                             </button>
-                        ))}
-                    </nav>
-                </div>
-            </header>
-            <main className="container mx-auto p-4 sm:p-6 lg:p-8">
-                {renderView()}
-            </main>
+                            <h1 className="text-xl font-bold text-slate-800">
+                                {navItems.find(item => item.id === currentView)?.label}
+                            </h1>
+                             {/* Placeholder for potential header actions */}
+                            <div className="w-6"></div>
+                        </div>
+                    </div>
+                </header>
+                <main className="container mx-auto p-4 sm:p-6 lg:p-8">
+                    {renderView()}
+                </main>
+            </div>
         </div>
     );
 };

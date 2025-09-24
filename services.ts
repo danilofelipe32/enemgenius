@@ -2,36 +2,65 @@
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent, ApiFreeLLMResponse } from './types';
 
 // --- API Service ---
-const API_URL = 'https://apifreellm.com/api/chat';
+// A service to interact with a free, rate-limited LLM API.
+// It handles a specific response structure including success, error, and rate-limiting with retries.
+// NOTE: The endpoint URL below is a placeholder. You must replace it with a real API endpoint
+// that matches the expected request/response format.
+const API_FREE_LLM_ENDPOINT = 'https://api.example.com/generate';
 
 export const apiService = {
-  async generate(prompt: string): Promise<string> {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: prompt })
-    });
+  async generate(prompt: string, schema?: any): Promise<string> {
+    // The 'schema' parameter is ignored as this generic free API is not expected to support structured output schemas.
+    // The signature is kept for compatibility with existing calls in the app.
 
-    if (!response.ok) {
-      throw new Error(`Erro na API: ${response.statusText} (${response.status})`);
-    }
+    const makeRequest = async (): Promise<string> => {
+      try {
+        // In a real app, calling a third-party API from the client can be insecure.
+        // This implementation is for demonstration purposes.
+        const response = await fetch(API_FREE_LLM_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
+        });
 
-    const data: ApiFreeLLMResponse = await response.json();
+        if (!response.ok) {
+          throw new Error(`Erro de rede: ${response.status} ${response.statusText}`);
+        }
 
-    if (data.status === 'success') {
-      if (!data.response || data.response.trim() === '') {
-        throw new Error("A API retornou uma resposta vazia. Por favor, tente novamente.");
+        const data: ApiFreeLLMResponse = await response.json();
+
+        switch (data.status) {
+          case 'success':
+            if (!data.response || data.response.trim() === '') {
+                throw new Error("A API retornou uma resposta vazia.");
+            }
+            return data.response;
+          
+          case 'rate_limited':
+            const retryAfter = data.retry_after || 5; // Default to 5 seconds
+            console.warn(`Rate limited by API. Retrying in ${retryAfter} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+            return makeRequest(); // Retry the request
+
+          case 'error':
+            throw new Error(`Erro retornado pela API: ${data.error || 'Ocorreu um erro desconhecido.'}`);
+
+          default:
+            throw new Error('Formato de resposta da API inesperado.');
+        }
+      } catch (error) {
+        // This catch block handles network errors or if the placeholder endpoint is not replaced.
+        console.error("API request failed:", error);
+        throw new Error("Falha ao se comunicar com o serviço de IA. Verifique se o endpoint da API está configurado corretamente e se sua conexão de rede está funcionando.");
       }
-      return data.response;
-    } else {
-      const errorMessage = data.error || 'Ocorreu um erro desconhecido na API.';
-      if (data.status === 'rate_limited') {
-        throw new Error(`Limite de requisições excedido. Por favor, aguarde ${data.retry_after || 5} segundos.`);
-      }
-      throw new Error(errorMessage);
-    }
+    };
+
+    return makeRequest();
   }
 };
+
 
 // --- Storage Service ---
 const DB_NAME = "EnemGeniusPWA_DB";
