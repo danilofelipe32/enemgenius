@@ -1243,19 +1243,94 @@ interface EditQuestionModalProps {
     onClose: () => void;
     question: Question | null;
     onSave: (updatedQuestion: Question) => void;
+    showNotification: (message: string, type: 'success' | 'error') => void;
 }
 
-const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, question, onSave }) => {
+const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, question, onSave, showNotification }) => {
     const [editedQuestion, setEditedQuestion] = useState<Question | null>(null);
+    const [showIaModification, setShowIaModification] = useState(false);
+    const [iaInstruction, setIaInstruction] = useState('');
+    const [isModifying, setIsModifying] = useState(false);
 
     useEffect(() => {
         if (question) {
-            // Create a deep copy to prevent modifying the original state directly
             setEditedQuestion(JSON.parse(JSON.stringify(question)));
+            setShowIaModification(false);
+            setIaInstruction('');
         } else {
             setEditedQuestion(null);
         }
     }, [question]);
+
+    const handleIaModify = async () => {
+        if (!iaInstruction.trim() || !editedQuestion) {
+            showNotification('Por favor, insira uma instrução para a IA.', 'error');
+            return;
+        }
+        setIsModifying(true);
+        try {
+            const originalQuestionPayload: any = {
+                stem: editedQuestion.stem,
+                discipline: editedQuestion.discipline,
+                difficulty: editedQuestion.difficulty,
+                constructionType: editedQuestion.constructionType,
+                bloomLevel: editedQuestion.bloomLevel,
+            };
+
+            let formatInstruction = '';
+            if (editedQuestion.type === 'objective') {
+                originalQuestionPayload.options = editedQuestion.options;
+                originalQuestionPayload.answerIndex = editedQuestion.answerIndex;
+                formatInstruction = `{ "stem": "...", "options": ["...", "...", "...", "...", "..."], "answerIndex": 0 }`;
+            } else {
+                originalQuestionPayload.expectedAnswer = editedQuestion.expectedAnswer;
+                formatInstruction = `{ "stem": "...", "expectedAnswer": "..." }`;
+            }
+
+            const prompt = `
+                Aja como um especialista em elaboração de questões. Sua tarefa é modificar uma questão existente com base na instrução fornecida pelo usuário.
+
+                A questão original é:
+                ${JSON.stringify(originalQuestionPayload, null, 2)}
+
+                A instrução de modificação é:
+                "${iaInstruction}"
+
+                REGRAS OBRIGATÓRIAS:
+                1. Modifique a questão original (enunciado, alternativas, e/ou gabarito) para atender à instrução.
+                2. Mantenha a mesma estrutura de dados da questão original.
+                3. Sua resposta DEVE ser um objeto JSON VÁLIDO, e NADA MAIS.
+                4. NÃO inclua explicações, texto introdutório, ou blocos de código markdown como \`\`\`json.
+                5. O objeto JSON de saída deve ter a seguinte estrutura: ${formatInstruction}
+            `;
+
+            const responseText = await apiService.generate(prompt);
+            const modifiedData = JSON.parse(responseText);
+
+            setEditedQuestion(prev => {
+                if (!prev) return null;
+                // Merge the new data with old data, preserving id, type, etc.
+                return {
+                    ...prev,
+                    stem: modifiedData.stem || prev.stem,
+                    options: modifiedData.options || prev.options,
+                    answerIndex: (typeof modifiedData.answerIndex === 'number') ? modifiedData.answerIndex : prev.answerIndex,
+                    expectedAnswer: modifiedData.expectedAnswer !== undefined ? modifiedData.expectedAnswer : prev.expectedAnswer,
+                };
+            });
+            showNotification('Questão modificada pela IA. Verifique as alterações e salve.', 'success');
+            setShowIaModification(false); // Hide after successful generation
+            setIaInstruction('');
+
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "A resposta da IA está em um formato inválido.";
+            showNotification(`Erro ao modificar com IA: ${errorMessage}`, 'error');
+            console.error("IA Modification Error:", error);
+        } finally {
+            setIsModifying(false);
+        }
+    };
+
 
     if (!isOpen || !editedQuestion) return null;
 
@@ -1332,6 +1407,27 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                         </div>
                     )}
 
+                    {showIaModification && (
+                        <div className="p-4 bg-cyan-50/50 border border-cyan-200 rounded-md space-y-3 transition-all">
+                            <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                                ✨ Modificar com IA
+                                <InfoTooltip text="Descreva como você quer que a IA modifique a questão acima. Ela irá reescrever o enunciado, as alternativas e o gabarito." />
+                            </h4>
+                            <textarea 
+                                value={iaInstruction}
+                                onChange={e => setIaInstruction(e.target.value)}
+                                placeholder="Ex: Deixe o enunciado mais curto, mude a questão para o tema de biologia, troque o gabarito para a alternativa C, etc."
+                                rows={3}
+                                className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md"
+                            />
+                            <div className="flex items-center justify-end">
+                                 <button onClick={handleIaModify} className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm w-36" disabled={isModifying}>
+                                     {isModifying ? <Spinner size="small" /> : 'Gerar Modificação'}
+                                 </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-slate-200">
                          <CustomDropdown 
                             id="edit-discipline"
@@ -1358,6 +1454,9 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                 </main>
                 <footer className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end items-center gap-3 flex-shrink-0">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-md">Cancelar</button>
+                    <button onClick={() => setShowIaModification(!showIaModification)} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${showIaModification ? 'bg-cyan-100 text-cyan-800' : 'bg-transparent text-cyan-700 hover:bg-cyan-50'}`}>
+                        ✨ Assim mas...
+                    </button>
                     <button onClick={handleSave} className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-md shadow-sm">Salvar Alterações</button>
                 </footer>
             </div>
@@ -1481,6 +1580,7 @@ const AppContent: React.FC = () => {
                 onClose={() => setEditingQuestion(null)}
                 question={editingQuestion}
                 onSave={handleUpdateQuestion}
+                showNotification={showNotification}
             />
 
             <Sidebar />
