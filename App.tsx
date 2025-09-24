@@ -385,7 +385,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             let specialInstruction = '';
             if (constructionType === 'Interpretação') {
                 specialInstruction = `
-                    INSTRUÇÃO ESPECIAL PARA 'INTERPRETAção':
+                    INSTRUÇÃO ESPECIAL PARA 'INTERPREtação':
                     Para questões que exijam um suporte (texto, gráfico, imagem, tabela, charge), o enunciado ('stem') DEVE começar com esse suporte.
                     1. Se for um texto, inclua-o integralmente entre aspas.
                     2. Se for um elemento VISUAL (gráfico, imagem, etc.), NÃO CRIE A IMAGEM. Em vez disso, descreva-a de forma rica e detalhada para que uma IA de imagem possa gerá-la. Formate a descrição assim: [DESCRIÇÃO PARA GERAR IMAGEM: Um gráfico de pizza mostrando a distribuição de fontes de energia no Brasil em 2023. A maior fatia é hidrelétrica com 60%, seguida por eólica com 15%...].
@@ -511,7 +511,12 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                                     <div className="sm:col-span-2">
                                         <CustomDropdown id="schoolYear" label="Série/Ano" options={SCHOOL_YEARS} selectedValue={schoolYear} onSelect={setSchoolYear} tooltip="Selecione o ano letivo do aluno para adequar a complexidade da questão." />
                                     </div>
-                                    <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} tooltip="Define a dificuldade geral da questão, ajustando automaticamente o nível de Bloom correspondente." />
+                                    <div>
+                                        <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} tooltip="Define a dificuldade geral da questão, ajustando automaticamente o nível de Bloom correspondente." />
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Nível de Bloom: <span className="font-semibold text-slate-700">{bloomLevel}</span>
+                                        </p>
+                                    </div>
                                     <CustomDropdown id="construction" label="Tipo de Construção" options={CONSTRUCTION_TYPES} selectedValue={constructionType} onSelect={setConstructionType} tooltip="Determina o formato e a abordagem da questão, como interpretação de texto, cálculo, ou análise de contexto social." />
                                 </div>
                             </div>
@@ -630,6 +635,15 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     const [filterBloom, setFilterBloom] = useState('Todos');
     const [filterFavorited, setFilterFavorited] = useState(false);
 
+    const BLOOM_LEVEL_COLORS: { [key: string]: string } = {
+        'Lembrar': 'bg-slate-100 text-slate-800',
+        'Entender': 'bg-green-100 text-green-800',
+        'Aplicar': 'bg-cyan-100 text-cyan-800',
+        'Analisar': 'bg-purple-100 text-purple-800',
+        'Avaliar': 'bg-orange-100 text-orange-800',
+        'Criar': 'bg-red-100 text-red-800',
+    };
+
     const filteredQuestions = useMemo(() => {
         return questions.filter(q => {
             const disciplineMatch = filterDiscipline === 'Todas' || q.discipline === filterDiscipline;
@@ -734,6 +748,7 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
                                         <span className="inline-block bg-sky-100 text-sky-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{DISCIPLINE_TO_AREA_MAP[q.discipline] || 'N/A'}</span>
                                         <span className="inline-block bg-teal-100 text-teal-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.discipline}</span>
                                         <span className="inline-block bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.difficulty}</span>
+                                        <span className={`inline-block text-xs font-medium px-2.5 py-0.5 rounded-full ${BLOOM_LEVEL_COLORS[q.bloomLevel] || 'bg-gray-100 text-gray-800'}`}>{q.bloomLevel}</span>
                                         <span className="inline-block bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full">{q.constructionType}</span>
                                         {q.type === 'subjective' && (
                                              <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Subjetiva</span>
