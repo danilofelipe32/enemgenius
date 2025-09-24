@@ -1,76 +1,51 @@
-import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent, ApiFreeLLMResponse } from './types';
+import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
+import { GoogleGenAI } from "@google/genai";
 
 // --- API Service ---
-// A service to interact with ApiFreeLLM, a free, rate-limited LLM API.
-// It handles the specific response structure including success, error, and rate-limiting with retries.
+// Serviço para interagir com a API oficial do Google Gemini.
+// Esta abordagem substitui a ApiFreeLLM para garantir estabilidade, performance
+// e eliminar a necessidade de proxies CORS.
 
-// NOTA: Um proxy CORS é usado para contornar as restrições de segurança do navegador.
-// O erro "Failed to fetch" ocorre porque a API de destino não envia os cabeçalhos CORS
-// necessários. Usamos um proxy para adicionar esses cabeçalhos. Os proxies públicos
-// podem ser instáveis. Se o erro persistir, pode ser necessário trocar o proxy novamente.
-// Trocamos de `thingproxy.freeboard.io` para `cors.bridged.cc` para maior estabilidade.
-const API_FREE_LLM_ENDPOINT = 'https://cors.bridged.cc/https://api.api-free.workers.dev/';
+// Inicializa o cliente Gemini. A chave de API deve estar disponível
+// como uma variável de ambiente (process.env.API_KEY).
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const apiService = {
-  async generate(prompt: string, schema?: any): Promise<string> {
-    // O parâmetro 'schema' é ignorado, pois esta API gratuita genérica não suporta esquemas de saída estruturados.
-    // A assinatura é mantida para compatibilidade com as chamadas existentes no aplicativo.
+  async generate(prompt: string): Promise<string> {
+    try {
+      // Verifica se o prompt está solicitando uma saída JSON para configurar a API adequadamente.
+      const isJsonPrompt = prompt.includes("Sua resposta DEVE ser um array JSON válido");
 
-    const makeRequest = async (): Promise<string> => {
-      try {
-        // Em um aplicativo real, chamar uma API de terceiros do cliente pode ser inseguro.
-        // Esta implementação é para fins de demonstração.
-        const response = await fetch(API_FREE_LLM_ENDPOINT, {
-          method: 'POST',
-          mode: 'cors', // Define explicitamente o modo CORS para requisições entre origens
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json', // Informa o tipo de conteúdo esperado na resposta
-          },
-          body: JSON.stringify({ message: prompt }), // Usa o campo 'message' conforme a documentação da ApiFreeLLM
-        });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          // Usa o modo JSON nativo do Gemini quando aplicável para maior confiabilidade
+          ...(isJsonPrompt && { responseMimeType: "application/json" }),
+        },
+      });
 
-        if (!response.ok) {
-          // Isso lida com erros de rede, não com erros da API que são retornados com HTTP 200.
-          throw new Error(`Erro de rede: ${response.status} ${response.statusText}`);
-        }
+      const text = response.text;
 
-        const data: ApiFreeLLMResponse = await response.json();
-
-        switch (data.status) {
-          case 'success':
-            if (!data.response || data.response.trim() === '') {
-                throw new Error("A API retornou uma resposta vazia, mas com status de sucesso.");
-            }
-            return data.response;
-          
-          case 'rate_limited':
-            const retryAfter = data.retry_after || 5; // Padrão de 5 segundos se não especificado
-            console.warn(`Limite de taxa da API atingido. Tentando novamente em ${retryAfter} segundos...`);
-            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-            return makeRequest(); // Tenta a requisição novamente
-
-          case 'error':
-            throw new Error(`Erro retornado pela API: ${data.error || 'Ocorreu um erro desconhecido.'}`);
-
-          default:
-            throw new Error('Formato de resposta da API inesperado.');
-        }
-      } catch (error) {
-        // Este bloco catch lida com erros de rede, falhas na análise do JSON ou erros lançados acima.
-        console.error("Falha na requisição à API:", error);
-        const originalErrorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        
-        // Verifica erros comuns do lado do cliente para fornecer feedback mais útil.
-        if (originalErrorMessage.includes('Failed to fetch')) {
-            throw new Error("Erro de rede ao tentar se comunicar com a API. Verifique sua conexão com a internet ou se há algum bloqueio de CORS no servidor de destino.");
-        }
-        
-        throw new Error(`Falha ao se comunicar com o serviço de IA: ${originalErrorMessage}.`);
+      if (!text || text.trim() === '') {
+        throw new Error("A API retornou uma resposta vazia, mas com status de sucesso.");
       }
-    };
+      return text;
 
-    return makeRequest();
+    } catch (error) {
+      // Captura erros da API Gemini ou de rede.
+      console.error("Falha na requisição à API Gemini:", error);
+      const originalErrorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
+      
+      if (originalErrorMessage.includes('API key not valid')) {
+         throw new Error("A chave de API para o serviço de IA não é válida. Verifique a configuração.");
+      }
+      if (originalErrorMessage.toLowerCase().includes('fetch')) {
+          throw new Error("Erro de rede ao se comunicar com a API. Verifique sua conexão com a internet.");
+      }
+      
+      throw new Error(`Falha ao se comunicar com o serviço de IA: ${originalErrorMessage}.`);
+    }
   }
 };
 

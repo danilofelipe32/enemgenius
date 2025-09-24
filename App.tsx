@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
 import { storageService, apiService, fileParserService } from './services';
@@ -302,15 +301,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             
             const responseText = await apiService.generate(prompt);
             
-            // Clean the response to ensure it's valid JSON
-            let cleanedText = responseText.trim();
-            if (cleanedText.startsWith('```json')) {
-                cleanedText = cleanedText.slice(7, -3).trim();
-            } else if (cleanedText.startsWith('`')) {
-                cleanedText = cleanedText.slice(1, -1).trim();
-            }
-
-            const parsedQuestions = JSON.parse(cleanedText);
+            const parsedQuestions = JSON.parse(responseText);
             
             const newQuestions: Question[] = parsedQuestions.map((q: any) => ({
                 id: crypto.randomUUID(),

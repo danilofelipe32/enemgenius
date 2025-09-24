@@ -31,10 +31,3 @@ export interface KnowledgeFile {
 export interface KnowledgeFileWithContent extends KnowledgeFile {
     indexedChunks: { text: string; index: Record<string, number> }[];
 }
-
-export interface ApiFreeLLMResponse {
-    status: 'success' | 'rate_limited' | 'error';
-    response: string;
-    error?: string;
-    retry_after?: number;
-}
