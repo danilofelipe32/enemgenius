@@ -1631,11 +1631,11 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <p className="font-medium text-slate-800">{exam.name}</p>
                                     <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
                                 </div>
-                                <div className="flex items-stretch gap-2 w-full sm:w-auto mt-3 sm:mt-0">
+                                <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto mt-3 sm:mt-0">
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'share'); }}
                                         disabled={isAnyProcessing}
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial sm:w-[110px]"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors disabled:opacity-50"
                                         aria-label={`Compartilhar prova ${exam.name}`}
                                     >
                                         {isSharing ? <Spinner size="small" /> : (
@@ -1650,7 +1650,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'download'); }} 
                                         disabled={isAnyProcessing}
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial sm:w-[80px]"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50"
                                         aria-label={`Gerar PDF da prova ${exam.name}`}
                                     >
                                         {isDownloading ? <Spinner size="small" /> : (
@@ -1665,7 +1665,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); startEditingExam(exam); }}
                                         disabled={isAnyProcessing} 
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors disabled:opacity-50"
                                         aria-label={`Editar prova ${exam.name}`}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -1677,7 +1677,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleDeleteExam(exam.id); }}
                                         disabled={isAnyProcessing} 
-                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50 flex-1 sm:flex-initial"
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50"
                                         aria-label={`Excluir prova ${exam.name}`}
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -2224,6 +2224,16 @@ const AppContent: React.FC = () => {
                     </NavLink>
                 ))}
             </nav>
+            <div className="absolute bottom-0 w-full p-4 text-center">
+                <a 
+                    href="https://wa.me/5584999780963" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-slate-400 hover:text-white transition-colors"
+                >
+                    Produzido por Danilo Arruda
+                </a>
+            </div>
         </aside>
     );
 
