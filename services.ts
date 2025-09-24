@@ -172,7 +172,7 @@ export const fileParserService = {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      fullText += textContent.items.map((item: any) => item.str).join(' ');
+      fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n\n';
     }
     return fullText;
   },

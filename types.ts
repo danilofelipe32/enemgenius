@@ -29,5 +29,5 @@ export interface KnowledgeFile {
 }
 
 export interface KnowledgeFileWithContent extends KnowledgeFile {
-    indexedChunks: { text: string; index: Record<string, number> }[];
+    indexedChunks: { text: string; tfIndex: Record<string, number> }[];
 }

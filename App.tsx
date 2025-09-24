@@ -3,6 +3,55 @@ import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types
 import { storageService, apiService, fileParserService } from './services';
 import { ALL_DISCIPLINES, DISCIPLINE_TO_AREA_MAP, KNOWLEDGE_AREAS } from './constants';
 
+// --- RAG Helper Functions ---
+
+const PORTUGUESE_STOP_WORDS = new Set([
+  'de', 'a', 'o', 'que', 'e', 'do', 'da', 'em', 'um', 'para', 'é', 'com', 'não', 'uma',
+  'os', 'no', 'na', 'por', 'mais', 'as', 'dos', 'como', 'mas', 'foi', 'ao', 'ele',
+  'das', 'tem', 'à', 'seu', 'sua', 'ou', 'ser', 'quando', 'muito', 'há', 'nos', 'já',
+  'está', 'eu', 'também', 'só', 'pelo', 'pela', 'até', 'isso', 'ela', 'entre', 'era',
+  'depois', 'sem', 'mesmo', 'aos', 'ter', 'seus', 'quem', 'nas', 'me', 'esse', 'eles',
+  'estão', 'você', 'tinha', 'foram', 'essa', 'num', 'nem', 'suas', 'meu', 'às', 'minha',
+  'têm', 'numa', 'pelos', 'elas', 'havia', 'seja', 'qual', 'será', 'nós', 'tenho',
+  'lhe', 'deles', 'essas', 'esses', 'pelas', 'este', 'fosse', 'dele', 'tu', 'te',
+  'vocês', 'vos', 'lhes', 'meus', 'minhas', 'teu', 'tua', 'teus', 'tuas', 'nosso',
+  'nossa', 'nossos', 'nossas', 'dela', 'delas', 'esta', 'estes', 'estas', 'aquele',
+  'aquela', 'aqueles', 'aquelas', 'isto', 'aquilo', 'estou', 'está', 'estamos', 'estão',
+  'estive', 'esteve', 'estivemos', 'estiveram', 'estava', 'estávamos', 'estavam',
+  'estivera', 'estivéramos', 'esteja', 'estejamos', 'estejam', 'estivesse', 'estivéssemos',
+  'estivessem', 'estiver', 'estivermos', 'estiverem', 'hei', 'há', 'havemos', 'hão',
+  'houve', 'houvemos', 'houveram', 'houvera', 'houvéramos', 'haja', 'hajamos', 'hajam',
+  'houvesse', 'houvéssemos', 'houvessem', 'houver', 'houvermos', 'houverem', 'houverei',
+  'houverá', 'houveremos', 'houverão', 'houveria', 'houveríamos', 'houveriam', 'sou',
+  'somos', 'são', 'era', 'éramos', 'eram', 'fui', 'foi', 'fomos', 'foram', 'fora',
+  'fôramos', 'seja', 'sejamos', 'sejam', 'fosse', 'fôssemos', 'fossem', 'for', 'formos',
+  'forem', 'serei', 'será', 'seremos', 'serão', 'seria', 'seríamos', 'seriam', 'tenho',
+  'tem', 'temos', 'tém', 'tinha', 'tínhamos', 'tinham', 'tive', 'teve', 'tivemos',
+  'tiveram', 'tivera', 'tivéramos', 'tenha', 'tenhamos', 'tenham', 'tivesse',
+  'tivéssemos', 'tivessem', 'tiver', 'tivermos', 'tiverem', 'terei', 'terá',
+  'teremos', 'terão', 'teria', 'teríamos', 'teriam'
+]);
+
+const tokenizeAndClean = (text: string): string[] => {
+  if (!text) return [];
+  return text
+    .toLowerCase()
+    .normalize("NFD") // Separate accents from letters
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .replace(/[^\w\s]/g, '') // Remove punctuation
+    .split(/\s+/) // Split by whitespace
+    .filter(word => word.length > 2 && !PORTUGUESE_STOP_WORDS.has(word));
+};
+
+const calculateTf = (text: string): Record<string, number> => {
+  const terms = tokenizeAndClean(text);
+  const termFrequencies: Record<string, number> = {};
+  for (const term of terms) {
+    termFrequencies[term] = (termFrequencies[term] || 0) + 1;
+  }
+  return termFrequencies;
+};
+
 // --- UI Components (defined in the same file for simplicity) ---
 
 const Spinner: React.FC<{ size?: 'small' | 'large' }> = ({ size = 'large' }) => {
@@ -245,13 +294,41 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
         try {
             let context = '';
             if (selectedFiles.length > 0) {
-                const fileContents = await Promise.all(
-                    selectedFiles.map(async (fileMeta) => {
-                        const file = await storageService.getFile(fileMeta.id);
-                        return file ? file.indexedChunks.map(chunk => chunk.text).join('\n\n') : '';
-                    })
+                const allFileContents = await Promise.all(
+                    selectedFiles.map(fileMeta => storageService.getFile(fileMeta.id))
                 );
-                context = fileContents.join('\n\n---\n\n');
+                const allChunks = allFileContents
+                    .filter((file): file is KnowledgeFileWithContent => !!file)
+                    .flatMap(file => file.indexedChunks);
+
+                const queryTerms = tokenizeAndClean(topic);
+
+                if (queryTerms.length > 0 && allChunks.length > 0) {
+                    const scoredChunks = allChunks.map(chunk => {
+                        const score = queryTerms.reduce((acc, term) => acc + (chunk.tfIndex[term] || 0), 0);
+                        return { text: chunk.text, score };
+                    }).filter(chunk => chunk.score > 0);
+
+                    scoredChunks.sort((a, b) => b.score - a.score);
+
+                    const MAX_CONTEXT_LENGTH = 8000;
+                    let currentContextLength = 0;
+                    const relevantChunks: string[] = [];
+
+                    for (const chunk of scoredChunks) {
+                        if (currentContextLength + chunk.text.length > MAX_CONTEXT_LENGTH) break;
+                        relevantChunks.push(chunk.text);
+                        currentContextLength += chunk.text.length;
+                    }
+                    
+                    if (relevantChunks.length > 0) {
+                        context = relevantChunks.join('\n\n---\n\n');
+                    } else {
+                        context = allChunks.slice(0, 5).map(chunk => chunk.text).join('\n\n---\n\n');
+                    }
+                } else if (allChunks.length > 0) {
+                    context = allChunks.slice(0, 5).map(chunk => chunk.text).join('\n\n---\n\n');
+                }
             }
 
             const commonPromptPart = `
@@ -293,7 +370,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             const prompt = `
                 Aja como um especialista em elaboração de questões para o ENEM. Crie ${numQuestions} questão(ões) ${questionType === 'objective' ? 'de múltipla escolha (A, B, C, D, E)' : 'SUBJETIVAS (dissertativas)'} sobre o seguinte tópico:
                 ${commonPromptPart}
-                ${context ? `Utilize o seguinte texto como base de conhecimento para criar as questões:\n---\n${context}\n---` : ''}
+                ${context ? `Utilize o seguinte texto como base de conhecimento para criar as questões (o texto foi selecionado por relevância ao tópico):\n---\n${context}\n---` : ''}
                 ${specialInstruction}
                 REGRAS DE FORMATAÇÃO DA SAÍDA:
                 ${jsonFormatInstruction}
@@ -691,12 +768,22 @@ const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ files, setFiles, 
         setIsUploading(true);
         try {
             const fileContent = await fileParserService.parseFile(file);
-            const chunks = fileContent.match(/[\s\S]{1,1500}/g) || [];
+            
+            const chunks = [];
+            const chunkSize = 1500;
+            const overlap = 200;
+            for (let i = 0; i < fileContent.length; i += (chunkSize - overlap)) {
+                chunks.push(fileContent.substring(i, i + chunkSize));
+            }
+            
             const newFile: KnowledgeFileWithContent = {
                 id: crypto.randomUUID(),
                 name: file.name,
                 isSelected: false,
-                indexedChunks: chunks.map(text => ({ text, index: {} })) // Simple chunking for demo
+                indexedChunks: chunks.map(text => ({
+                    text,
+                    tfIndex: calculateTf(text),
+                }))
             };
             await storageService.saveFile(newFile);
             setFiles([...files, { id: newFile.id, name: newFile.name, isSelected: newFile.isSelected }]);
@@ -921,7 +1008,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                             placeholder="Buscar por enunciado ou disciplina..."
                             className="focus:ring-cyan-500 focus:border-cyan-500 block w-full shadow-sm sm:text-sm border-slate-300 rounded-md"
                         />
-                        <div className="border border-slate-200 rounded-md p-2 h-80 overflow-y-a'uto custom-scrollbar space-y-2">
+                        <div className="border border-slate-200 rounded-md p-2 h-80 overflow-y-auto custom-scrollbar space-y-2">
                             {availableQuestions.map(q => (
                                <div key={q.id} className="p-2 bg-white rounded-md flex justify-between items-start gap-2 hover:bg-slate-50">
                                    <div className="flex-1">
