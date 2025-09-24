@@ -8,23 +8,25 @@ const API_FREE_LLM_ENDPOINT = 'https://api.api-free.workers.dev/';
 
 export const apiService = {
   async generate(prompt: string, schema?: any): Promise<string> {
-    // The 'schema' parameter is ignored as this generic free API is not expected to support structured output schemas.
-    // The signature is kept for compatibility with existing calls in the app.
+    // O parâmetro 'schema' é ignorado, pois esta API gratuita genérica não suporta esquemas de saída estruturados.
+    // A assinatura é mantida para compatibilidade com as chamadas existentes no aplicativo.
 
     const makeRequest = async (): Promise<string> => {
       try {
-        // In a real app, calling a third-party API from the client can be insecure.
-        // This implementation is for demonstration purposes.
+        // Em um aplicativo real, chamar uma API de terceiros do cliente pode ser inseguro.
+        // Esta implementação é para fins de demonstração.
         const response = await fetch(API_FREE_LLM_ENDPOINT, {
           method: 'POST',
+          mode: 'cors', // Define explicitamente o modo CORS para requisições entre origens
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json', // Informa o tipo de conteúdo esperado na resposta
           },
-          body: JSON.stringify({ message: prompt }), // Use 'message' field as per ApiFreeLLM docs
+          body: JSON.stringify({ message: prompt }), // Usa o campo 'message' conforme a documentação da ApiFreeLLM
         });
 
         if (!response.ok) {
-          // This handles network-level errors, not API errors which are returned with HTTP 200.
+          // Isso lida com erros de rede, não com erros da API que são retornados com HTTP 200.
           throw new Error(`Erro de rede: ${response.status} ${response.statusText}`);
         }
 
@@ -33,15 +35,15 @@ export const apiService = {
         switch (data.status) {
           case 'success':
             if (!data.response || data.response.trim() === '') {
-                throw new Error("A API retornou uma resposta vazia.");
+                throw new Error("A API retornou uma resposta vazia, mas com status de sucesso.");
             }
             return data.response;
           
           case 'rate_limited':
-            const retryAfter = data.retry_after || 5; // Default to 5 seconds
-            console.warn(`Rate limited by API. Retrying in ${retryAfter} seconds...`);
+            const retryAfter = data.retry_after || 5; // Padrão de 5 segundos se não especificado
+            console.warn(`Limite de taxa da API atingido. Tentando novamente em ${retryAfter} segundos...`);
             await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
-            return makeRequest(); // Retry the request
+            return makeRequest(); // Tenta a requisição novamente
 
           case 'error':
             throw new Error(`Erro retornado pela API: ${data.error || 'Ocorreu um erro desconhecido.'}`);
@@ -50,9 +52,16 @@ export const apiService = {
             throw new Error('Formato de resposta da API inesperado.');
         }
       } catch (error) {
-        // This catch block handles network errors or if the endpoint is not reachable.
-        console.error("API request failed:", error);
-        throw new Error("Falha ao se comunicar com o serviço de IA. Verifique sua conexão de rede e se o serviço está online.");
+        // Este bloco catch lida com erros de rede, falhas na análise do JSON ou erros lançados acima.
+        console.error("Falha na requisição à API:", error);
+        const originalErrorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        
+        // Verifica erros comuns do lado do cliente para fornecer feedback mais útil.
+        if (originalErrorMessage.includes('Failed to fetch')) {
+            throw new Error("Erro de rede ao tentar se comunicar com a API. Verifique sua conexão com a internet ou se há algum bloqueio de CORS no servidor de destino.");
+        }
+        
+        throw new Error(`Falha ao se comunicar com o serviço de IA: ${originalErrorMessage}.`);
       }
     };
 
