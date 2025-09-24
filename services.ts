@@ -2,11 +2,9 @@
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent, ApiFreeLLMResponse } from './types';
 
 // --- API Service ---
-// A service to interact with a free, rate-limited LLM API.
-// It handles a specific response structure including success, error, and rate-limiting with retries.
-// NOTE: The endpoint URL below is a placeholder. You must replace it with a real API endpoint
-// that matches the expected request/response format.
-const API_FREE_LLM_ENDPOINT = 'https://api.example.com/generate';
+// A service to interact with ApiFreeLLM, a free, rate-limited LLM API.
+// It handles the specific response structure including success, error, and rate-limiting with retries.
+const API_FREE_LLM_ENDPOINT = 'https://api.api-free.workers.dev/';
 
 export const apiService = {
   async generate(prompt: string, schema?: any): Promise<string> {
@@ -22,10 +20,11 @@ export const apiService = {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ message: prompt }), // Use 'message' field as per ApiFreeLLM docs
         });
 
         if (!response.ok) {
+          // This handles network-level errors, not API errors which are returned with HTTP 200.
           throw new Error(`Erro de rede: ${response.status} ${response.statusText}`);
         }
 
@@ -51,9 +50,9 @@ export const apiService = {
             throw new Error('Formato de resposta da API inesperado.');
         }
       } catch (error) {
-        // This catch block handles network errors or if the placeholder endpoint is not replaced.
+        // This catch block handles network errors or if the endpoint is not reachable.
         console.error("API request failed:", error);
-        throw new Error("Falha ao se comunicar com o serviço de IA. Verifique se o endpoint da API está configurado corretamente e se sua conexão de rede está funcionando.");
+        throw new Error("Falha ao se comunicar com o serviço de IA. Verifique sua conexão de rede e se o serviço está online.");
       }
     };
 
