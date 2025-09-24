@@ -1156,15 +1156,43 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
             ) : (
                 <ul className="divide-y divide-slate-200">
                     {exams.map(exam => (
-                        <li key={exam.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 group">
+                        <li key={exam.id} className="py-3 px-2 -mx-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50/75 rounded-lg transition-colors duration-150">
                             <div onClick={() => startEditingExam(exam)} className="flex-grow cursor-pointer">
-                                <p className="font-medium text-slate-800 group-hover:text-cyan-700 transition-colors">{exam.name}</p>
+                                <p className="font-medium text-slate-800">{exam.name}</p>
                                 <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
                             </div>
                              <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0 mt-2 sm:mt-0">
-                                <button onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam); }} className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors">Gerar PDF</button>
-                                <button onClick={(e) => { e.stopPropagation(); startEditingExam(exam); }} className="px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors">Editar</button>
-                                <button onClick={(e) => { e.stopPropagation(); handleDeleteExam(exam.id); }} className="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors">Excluir</button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam); }} 
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
+                                    aria-label={`Gerar PDF da prova ${exam.name}`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 8a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                    </svg>
+                                    <span>PDF</span>
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); startEditingExam(exam); }} 
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors"
+                                    aria-label={`Editar prova ${exam.name}`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                      <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                      <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                                    </svg>
+                                    <span>Editar</span>
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteExam(exam.id); }} 
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors"
+                                    aria-label={`Excluir prova ${exam.name}`}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                    </svg>
+                                    <span>Excluir</span>
+                                </button>
                             </div>
                         </li>
                     ))}
