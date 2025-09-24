@@ -1276,6 +1276,7 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
     const [examName, setExamName] = useState('');
     const [questionIdsInExam, setQuestionIdsInExam] = useState<string[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [isProcessingPdf, setIsProcessingPdf] = useState<{id: string, action: 'download' | 'share'} | null>(null);
     const [generationOptions, setGenerationOptions] = useState({
         includeOptions: true,
         includeAnswerKey: true,
@@ -1331,89 +1332,129 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
         }
     };
 
-    const handleGeneratePdf = (examToPrint: Exam) => {
+    const handleGeneratePdf = async (examToPrint: Exam, action: 'download' | 'share') => {
+        if (isProcessingPdf) return;
+        setIsProcessingPdf({ id: examToPrint.id, action });
+
         try {
             if (typeof jspdf === 'undefined') {
                 throw new Error('A biblioteca de geração de PDF (jsPDF) não foi carregada.');
             }
 
             const { jsPDF } = jspdf;
-            const doc = new jsPDF({
-                orientation: 'p',
-                unit: 'pt',
-                format: 'a4'
-            });
+            const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
 
-            // Sanitize HTML content to prevent XSS and rendering issues
-            const sanitize = (text: string) => {
-                const element = document.createElement('div');
-                element.innerText = text;
-                return element.innerHTML;
+            const page = {
+                width: doc.internal.pageSize.getWidth(),
+                height: doc.internal.pageSize.getHeight(),
+                margin: { top: 40, right: 40, bottom: 40, left: 40 }
+            };
+            const contentWidth = page.width - page.margin.left - page.margin.right;
+            let y = page.margin.top;
+
+            const addPageIfNeeded = (requiredHeight: number) => {
+                if (y + requiredHeight > page.height - page.margin.bottom) {
+                    doc.addPage();
+                    y = page.margin.top;
+                }
             };
 
-            let htmlContent = `
-                <style>
-                    body { font-family: 'Helvetica', 'sans-serif'; font-size: 11pt; line-height: 1.5; color: #333; }
-                    h1 { text-align: center; margin-bottom: 25pt; font-size: 18pt; color: #000; font-weight: bold; border-bottom: 1pt solid #ccc; padding-bottom: 10pt; }
-                    h2 { font-size: 16pt; color: #000; font-weight: bold; margin-bottom: 15pt; }
-                    .question { margin-bottom: 18pt; page-break-inside: avoid; }
-                    .question-header { font-weight: bold; margin-bottom: 6pt; font-size: 12pt; }
-                    .stem { margin-bottom: 8pt; white-space: pre-wrap; word-wrap: break-word; }
-                    .options { list-style-type: upper-alpha; padding-left: 20pt; margin: 0; }
-                    .options li { margin-bottom: 5pt; padding-left: 5pt; }
-                    .answer-key { margin-top: 30pt; padding-top: 15pt; page-break-before: always; border-top: 2pt solid #000; }
-                    .answer-key ol { list-style-type: none; padding-left: 0; columns: 2; column-gap: 30pt; }
-                    .answer-key li { margin-bottom: 6pt; font-size: 11pt; }
-                </style>
-                <h1>${sanitize(examToPrint.name)}</h1>
-            `;
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            const titleLines = doc.splitTextToSize(examToPrint.name, contentWidth);
+            addPageIfNeeded(titleLines.length * 20 + 20);
+            doc.text(titleLines, page.width / 2, y, { align: 'center' });
+            y += titleLines.length * 20 + 20;
 
+            const answerKey: { question: number; answer: string }[] = [];
             const examQuestions = examToPrint.questionIds
                 .map(id => questions.find(q => q.id === id))
                 .filter((q): q is Question => !!q);
-            
+
             examQuestions.forEach((q, index) => {
-                htmlContent += `
-                    <div class="question">
-                        <p class="question-header">Questão ${index + 1}:</p>
-                        <div class="stem">${sanitize(q.stem)}</div>
-                `;
+                const questionNumber = index + 1;
+                const questionHeader = `Questão ${questionNumber}:`;
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+
+                const stemLines = doc.splitTextToSize(q.stem, contentWidth);
+                let optionsHeight = 0;
                 if (q.type === 'objective' && examToPrint.generationOptions?.includeOptions && q.options) {
-                    htmlContent += '<ol class="options">';
                     q.options.forEach(opt => {
-                        htmlContent += `<li>${sanitize(opt)}</li>`;
+                        optionsHeight += doc.splitTextToSize(opt, contentWidth - 20).length * 14 + 5;
                     });
-                    htmlContent += '</ol>';
                 }
-                htmlContent += '</div>';
+                const estimatedHeight = 20 + (stemLines.length * 14) + optionsHeight + 15;
+                addPageIfNeeded(estimatedHeight);
+
+                doc.text(questionHeader, page.margin.left, y);
+                y += 20;
+
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                doc.text(stemLines, page.margin.left, y, { maxWidth: contentWidth });
+                y += stemLines.length * 14;
+
+                if (q.type === 'objective' && examToPrint.generationOptions?.includeOptions && q.options) {
+                    y += 5;
+                    q.options.forEach((option, optIndex) => {
+                        const optionLabel = `${String.fromCharCode(65 + optIndex)}) `;
+                        const optionLines = doc.splitTextToSize(option, contentWidth - 20);
+                        addPageIfNeeded((optionLines.length * 14) + 5);
+                        doc.text(optionLabel, page.margin.left, y);
+                        doc.text(optionLines, page.margin.left + 20, y, { maxWidth: contentWidth - 20 });
+                        y += (optionLines.length * 14) + 5;
+                    });
+                    if (typeof q.answerIndex === 'number') {
+                        answerKey.push({ question: questionNumber, answer: String.fromCharCode(65 + q.answerIndex) });
+                    }
+                } else {
+                    answerKey.push({ question: questionNumber, answer: 'Resposta dissertativa' });
+                }
+                y += 15;
             });
 
-            if (examToPrint.generationOptions?.includeAnswerKey) {
-                htmlContent += `<div class="answer-key"><h2>Gabarito</h2><ol>`;
-                examQuestions.forEach((q, index) => {
-                    let answer = 'Resposta dissertativa';
-                    if (q.type === 'objective' && typeof q.answerIndex === 'number') {
-                        answer = String.fromCharCode(65 + q.answerIndex);
-                    }
-                    htmlContent += `<li><strong>Questão ${index + 1}:</strong> ${answer}</li>`;
+            if (examToPrint.generationOptions?.includeAnswerKey && answerKey.length > 0) {
+                addPageIfNeeded(page.height); 
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Gabarito', page.margin.left, y);
+                y += 30;
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'normal');
+                answerKey.forEach(item => {
+                    const answerText = `Questão ${item.question}: ${item.answer}`;
+                    addPageIfNeeded(20);
+                    doc.text(answerText, page.margin.left, y);
+                    y += 20;
                 });
-                htmlContent += `</ol></div>`;
+            }
+            
+            if (action === 'download') {
+                doc.save(`${examToPrint.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+                showNotification('PDF gerado com sucesso!', 'success');
+            } else if (action === 'share') {
+                const pdfBlob = doc.output('blob');
+                const pdfFile = new File([pdfBlob], `${examToPrint.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`, { type: 'application/pdf' });
+                
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                    await navigator.share({
+                        files: [pdfFile],
+                        title: examToPrint.name,
+                        text: `Prova gerada pelo ENEM Genius: ${examToPrint.name}`
+                    });
+                    showNotification('Prova compartilhada!', 'success');
+                } else {
+                    throw new Error('O compartilhamento de arquivos não é suportado neste navegador.');
+                }
             }
 
-            doc.html(htmlContent, {
-                callback: function (docInstance: any) {
-                    docInstance.save(`${examToPrint.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
-                    showNotification('PDF gerado com sucesso!', 'success');
-                },
-                x: 40,
-                y: 40,
-                width: 515, // A4 width (595pt) - 2*40pt margin
-                windowWidth: 800
-            });
         } catch (error) {
-            console.error("Falha ao gerar PDF:", error);
-            const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido durante a geração do PDF.";
-            showNotification(`Falha ao gerar o PDF: ${errorMessage}`, 'error');
+            console.error("Falha ao processar PDF:", error);
+            const errorMessage = error instanceof Error ? error.message : "Ocorreu um erro desconhecido.";
+            showNotification(`Falha ao processar o PDF: ${errorMessage}`, 'error');
+        } finally {
+            setIsProcessingPdf(null);
         }
     };
     
@@ -1557,47 +1598,75 @@ const ExamCreatorView: React.FC<ExamCreatorViewProps> = ({ exams, questions, set
                 </div>
             ) : (
                 <ul className="divide-y divide-slate-200">
-                    {exams.map(exam => (
-                        <li key={exam.id} className="py-3 px-2 -mx-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50/75 rounded-lg transition-colors duration-150">
-                            <div onClick={() => navigate(`/exams/${exam.id}`)} className="flex-grow cursor-pointer">
-                                <p className="font-medium text-slate-800">{exam.name}</p>
-                                <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
-                            </div>
-                             <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0 mt-2 sm:mt-0">
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam); }} 
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors"
-                                    aria-label={`Gerar PDF da prova ${exam.name}`}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 8a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                                    </svg>
-                                    <span>PDF</span>
-                                </button>
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); startEditingExam(exam); }} 
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors"
-                                    aria-label={`Editar prova ${exam.name}`}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                      <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
-                                      <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-                                    </svg>
-                                    <span>Editar</span>
-                                </button>
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteExam(exam.id); }} 
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors"
-                                    aria-label={`Excluir prova ${exam.name}`}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
-                                    </svg>
-                                    <span>Excluir</span>
-                                </button>
-                            </div>
-                        </li>
-                    ))}
+                    {exams.map(exam => {
+                        const isAnyProcessing = isProcessingPdf?.id === exam.id;
+                        const isSharing = isAnyProcessing && isProcessingPdf?.action === 'share';
+                        const isDownloading = isAnyProcessing && isProcessingPdf?.action === 'download';
+                        
+                        return (
+                            <li key={exam.id} className="py-3 px-2 -mx-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50/75 rounded-lg transition-colors duration-150">
+                                <div onClick={() => navigate(`/exams/${exam.id}`)} className="flex-grow cursor-pointer">
+                                    <p className="font-medium text-slate-800">{exam.name}</p>
+                                    <p className="text-sm text-slate-500">{exam.questionIds.length} {exam.questionIds.length === 1 ? 'questão' : 'questões'}</p>
+                                </div>
+                                <div className="flex items-center gap-2 self-start sm:self-center flex-shrink-0 mt-2 sm:mt-0">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'share'); }}
+                                        disabled={isAnyProcessing}
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-full transition-colors disabled:opacity-50 w-[110px]"
+                                        aria-label={`Compartilhar prova ${exam.name}`}
+                                    >
+                                        {isSharing ? <Spinner size="small" /> : (
+                                            <>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                  <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                                                </svg>
+                                                <span>Compartilhar</span>
+                                            </>
+                                        )}
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleGeneratePdf(exam, 'download'); }} 
+                                        disabled={isAnyProcessing}
+                                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full transition-colors disabled:opacity-50 w-[60px]"
+                                        aria-label={`Gerar PDF da prova ${exam.name}`}
+                                    >
+                                        {isDownloading ? <Spinner size="small" /> : (
+                                            <>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 8a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                                </svg>
+                                                <span>PDF</span>
+                                            </>
+                                        )}
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); startEditingExam(exam); }}
+                                        disabled={isAnyProcessing} 
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-cyan-700 bg-cyan-100 hover:bg-cyan-200 rounded-full transition-colors disabled:opacity-50"
+                                        aria-label={`Editar prova ${exam.name}`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                          <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                          <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                                        </svg>
+                                        <span>Editar</span>
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteExam(exam.id); }}
+                                        disabled={isAnyProcessing} 
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-full transition-colors disabled:opacity-50"
+                                        aria-label={`Excluir prova ${exam.name}`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                        </svg>
+                                        <span>Excluir</span>
+                                    </button>
+                                </div>
+                            </li>
+                        )
+                    })}
                 </ul>
             )}
         </div>
