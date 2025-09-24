@@ -1,4 +1,5 @@
 
+
 export const KNOWLEDGE_AREAS: { [key: string]: string[] } = {
   "Linguagens, Códigos e suas Tecnologias": [
     "Língua Portuguesa", "Literatura", "Língua Estrangeira (Inglês)", 
@@ -6,7 +7,7 @@ export const KNOWLEDGE_AREAS: { [key: string]: string[] } = {
     "Tecnologias da Informação e Comunicação"
   ],
   "Matemática e suas Tecnologias": ["Matemática"],
-  "Ciências da Natureza e suas Tecnologias": ["Física", "Química", "Biologia"],
+  "Ciências da Natureza e suas Tecnologias": ["Ciências", "Física", "Química", "Biologia"],
   "Ciências Humanas e Sociais Aplicadas": ["História", "Geografia", "Filosofia", "Sociologia"],
 };
 
