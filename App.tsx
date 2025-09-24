@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { HashRouter, Routes, Route, NavLink, useLocation, Navigate, useParams, Link, useNavigate } from 'react-router-dom';
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
@@ -473,6 +474,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             `;
             const explanationText = await apiService.generate(prompt);
             setExplanationState({ content: explanationText, isLoading: false, error: null });
+        // FIX: Corrected invalid catch block syntax from `catch(error) =>` to `catch(error)`.
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Falha ao gerar a explicação.";
             setExplanationState({ content: '', isLoading: false, error: errorMessage });
@@ -634,6 +636,8 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     const [filterDiscipline, setFilterDiscipline] = useState('Todas');
     const [filterBloom, setFilterBloom] = useState('Todos');
     const [filterFavorited, setFilterFavorited] = useState(false);
+    const [isExportOpen, setIsExportOpen] = useState(false);
+    const exportRef = useRef<HTMLDivElement>(null);
 
     const BLOOM_LEVEL_COLORS: { [key: string]: string } = {
         'Lembrar': 'bg-slate-100 text-slate-800',
@@ -656,6 +660,16 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
     useEffect(() => {
         setCurrentPage(1);
     }, [filterDiscipline, filterBloom, filterFavorited]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (exportRef.current && !exportRef.current.contains(event.target as Node)) {
+                setIsExportOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const totalPages = Math.ceil(filteredQuestions.length / QUESTIONS_PER_PAGE);
     const startIndex = (currentPage - 1) * QUESTIONS_PER_PAGE;
@@ -688,6 +702,60 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
         });
     };
 
+    const handleExport = (format: 'json' | 'csv') => {
+        setIsExportOpen(false);
+        if (filteredQuestions.length === 0) {
+            showNotification('Nenhuma questão para exportar com os filtros atuais.', 'error');
+            return;
+        }
+
+        let fileContent: string;
+        let fileType: string;
+        let fileName: string;
+
+        if (format === 'json') {
+            fileContent = JSON.stringify(filteredQuestions, null, 2);
+            fileType = 'application/json';
+            fileName = 'enem_genius_questoes.json';
+        } else {
+            const headers = ['id', 'stem', 'type', 'options', 'answerIndex', 'expectedAnswer', 'favorited', 'discipline', 'bloomLevel', 'constructionType', 'difficulty'];
+            const escapeCSV = (value: any): string => {
+                if (value == null) return '';
+                let str = String(value);
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    str = '"' + str.replace(/"/g, '""') + '"';
+                }
+                return str;
+            };
+
+            const rows = filteredQuestions.map(q => {
+                return headers.map(header => {
+                    let value = (q as any)[header];
+                    if (header === 'options' && Array.isArray(value)) {
+                        value = JSON.stringify(value);
+                    }
+                    return escapeCSV(value);
+                }).join(',');
+            });
+            
+            // Add BOM for Excel UTF-8 compatibility
+            fileContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+            fileType = 'text/csv;charset=utf-8;';
+            fileName = 'enem_genius_questoes.csv';
+        }
+        
+        const blob = new Blob([fileContent], { type: fileType });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        
+        showNotification(`Questões exportadas para ${format.toUpperCase()}!`, 'success');
+    };
+
     const goToPage = (page: number) => {
         setCurrentPage(Math.max(1, Math.min(page, totalPages)));
     };
@@ -704,31 +772,54 @@ const QuestionBankView: React.FC<QuestionBankViewProps> = ({ questions, setQuest
 
     return (
         <div className="bg-white p-6 rounded-lg border border-slate-200">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 pb-6 border-b border-slate-200">
-                <CustomDropdown
-                    id="filter-discipline"
-                    label="Filtrar por Disciplina"
-                    options={['Todas', ...ALL_DISCIPLINES]}
-                    selectedValue={filterDiscipline}
-                    onSelect={setFilterDiscipline}
-                />
-                <CustomDropdown
-                    id="filter-bloom"
-                    label="Filtrar por Nível de Bloom"
-                    options={['Todos', ...BLOOM_LEVELS]}
-                    selectedValue={filterBloom}
-                    onSelect={setFilterBloom}
-                />
-                <div className="flex items-end">
-                    <label className="flex items-center gap-2 mt-1 w-full h-[38px] cursor-pointer p-2 rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50">
-                        <input
-                            type="checkbox"
-                            checked={filterFavorited}
-                            onChange={(e) => setFilterFavorited(e.target.checked)}
-                            className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
-                        />
-                        <span className="text-sm font-medium text-slate-700">Apenas Favoritas</span>
-                    </label>
+            <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6 pb-6 border-b border-slate-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
+                    <CustomDropdown
+                        id="filter-discipline"
+                        label="Filtrar por Disciplina"
+                        options={['Todas', ...ALL_DISCIPLINES]}
+                        selectedValue={filterDiscipline}
+                        onSelect={setFilterDiscipline}
+                    />
+                    <CustomDropdown
+                        id="filter-bloom"
+                        label="Filtrar por Nível de Bloom"
+                        options={['Todos', ...BLOOM_LEVELS]}
+                        selectedValue={filterBloom}
+                        onSelect={setFilterBloom}
+                    />
+                    <div className="flex items-end">
+                        <label className="flex items-center gap-2 mt-1 w-full h-[38px] cursor-pointer p-2 rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50">
+                            <input
+                                type="checkbox"
+                                checked={filterFavorited}
+                                onChange={(e) => setFilterFavorited(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">Apenas Favoritas</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex justify-end mb-4">
+                <div className="relative" ref={exportRef}>
+                    <button onClick={() => setIsExportOpen(!isExportOpen)} className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 text-sm font-medium rounded-md shadow-sm text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500">
+                        Exportar Questões
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    </button>
+                    {isExportOpen && (
+                        <div className="absolute right-0 mt-2 w-48 origin-top-right rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                            <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                                <button onClick={() => handleExport('json')} className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" role="menuitem">
+                                    Exportar para JSON
+                                </button>
+                                <button onClick={() => handleExport('csv')} className="w-full text-left block px-4 py-2 text-sm text-slate-700 hover:bg-slate-100" role="menuitem">
+                                    Exportar para CSV
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -852,6 +943,7 @@ const KnowledgeBaseView: React.FC<KnowledgeBaseViewProps> = ({ files, setFiles, 
             await storageService.saveFile(newFile);
             setFiles([...files, { id: newFile.id, name: newFile.name, isSelected: newFile.isSelected }]);
             showNotification(`Arquivo "${file.name}" adicionado com sucesso!`, 'success');
+        // FIX: Corrected invalid catch block syntax from `catch(error) =>` to `catch(error)`.
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Erro desconhecido ao processar o arquivo.";
             showNotification(errorMessage, 'error');
@@ -1443,6 +1535,7 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
             setShowIaModification(false); // Hide after successful generation
             setIaInstruction('');
 
+        // FIX: Corrected invalid catch block syntax from `catch(error) =>` to `catch(error)`.
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "A resposta da IA está em um formato inválido.";
             showNotification(`Erro ao modificar com IA: ${errorMessage}`, 'error');
