@@ -1,54 +1,34 @@
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
+import { GoogleGenAI } from '@google/genai';
 
 // --- API Service ---
-// Serviço para interagir com a APIFreeLLM.
-// Esta abordagem oferece uso ilimitado e gratuito para prototipagem e desenvolvimento.
+// Serviço para interagir com a API do Google Gemini.
 
-// URL da API
-const API_URL = "https://apifreellm.com/api/chat";
+// A chave de API DEVE ser configurada na variável de ambiente `process.env.API_KEY`.
+// A aplicação assume que esta variável está disponível no ambiente de execução.
+// NOTA: A chave fornecida no prompt não será codificada aqui por razões de segurança e para seguir as diretrizes.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 export const apiService = {
-  async generate(prompt: string): Promise<string> {
+  async generate(prompt: string, options: { jsonOutput?: boolean; systemInstruction?: string } = {}): Promise<string> {
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: prompt,
-        }),
-      });
+        const { jsonOutput, systemInstruction } = options;
 
-      // APIFreeLLM sempre retorna 200, então precisamos verificar o corpo da resposta.
-      if (!response.ok) {
-          // Isso lida com erros de rede, não com erros da API em si.
-          throw new Error(`Erro de rede: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      switch (data.status) {
-        case 'success':
-          if (!data.response || data.response.trim() === '') {
-            throw new Error("A API retornou uma resposta vazia, mas com status de sucesso.");
-          }
-          return data.response;
-        case 'rate_limited':
-          throw new Error(`Limite de requisições excedido. Por favor, aguarde ${data.retry_after} segundos.`);
-        case 'error':
-          // O campo 'error' contém a mensagem de erro da API.
-          throw new Error(data.error || 'Ocorreu um erro desconhecido na API.');
-        default:
-          throw new Error(`Status de resposta da API desconhecido: ${data.status}`);
-      }
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                ...(systemInstruction && { systemInstruction }),
+                ...(jsonOutput && { responseMimeType: 'application/json' })
+            }
+        });
+        
+        return response.text;
 
     } catch (error) {
-      // Captura erros da API ou de rede.
-      console.error("Falha na requisição à APIFreeLLM:", error);
+      console.error("Falha na requisição à API Gemini:", error);
+      // Fornece feedback mais detalhado sobre o erro, se disponível.
       const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
-      
-      // Re-lança o erro para que a UI possa capturá-lo e exibi-lo.
       throw new Error(`Falha ao se comunicar com o serviço de IA: ${errorMessage}`);
     }
   }

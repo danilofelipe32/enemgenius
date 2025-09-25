@@ -275,7 +275,7 @@ const InfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
                         </ul>
                     </div>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-600">
-                        <p><strong>Tecnologia:</strong> Este projeto utiliza a APIFreeLLM para a geração de conteúdo por IA e IndexedDB/LocalStorage para armazenamento local no seu navegador, garantindo que seus dados permaneçam privados.</p>
+                        <p><strong>Tecnologia:</strong> Este projeto utiliza a API do Google Gemini para a geração de conteúdo por IA e IndexedDB/LocalStorage para armazenamento local no seu navegador, garantindo que seus dados permaneçam privados.</p>
                     </div>
                 </main>
                 <footer className="p-4 bg-slate-50 border-t border-slate-200 text-center flex-shrink-0">
@@ -437,9 +437,10 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
             const jsonStructure = questionType === 'objective'
                 ? `{ "stem": "O enunciado completo, incluindo o texto de apoio/contexto.", "options": ["Alternativa A", "Alternativa B", "Alternativa C", "Alternativa D", "Alternativa E"], "answerIndex": 0, "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`
                 : `{ "stem": "O enunciado completo, incluindo o texto de apoio/contexto.", "expectedAnswer": "A resposta dissertativa completa e bem fundamentada aqui.", "discipline": "${selectedDiscipline}", "bloomLevel": "${bloomLevel}", "constructionType": "${constructionType}", "difficulty": "${difficulty}", "schoolYear": "${schoolYear}", "topics": ${JSON.stringify(topicsList)} }`;
+            
+            const systemInstruction = "Aja como um especialista em elaboração de questões para o ENEM, com profundo conhecimento da Base Nacional Comum Curricular (BNCC).";
 
             const prompt = `
-                Aja como um especialista em elaboração de questões para o ENEM, com profundo conhecimento da Base Nacional Comum Curricular (BNCC).
                 Sua tarefa é criar ${numQuestions} questão(ões) ${questionType === 'objective' ? 'de múltipla escolha (A, B, C, D, E)' : 'SUBJETIVAS (dissertativas)'} que sejam ricas em contexto e estritamente alinhadas à BNCC.
 
                 **PARÂMETROS DA QUESTÃO:**
@@ -459,15 +460,13 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 3.  **SUPORTE VISUAL (QUANDO APLICÁvel):** Se a questão exigir um elemento visual (gráfico, imagem, charge), NÃO CRIE A IMAGEM. Em vez disso, descreva-a de forma rica e detalhada para que uma IA de imagem possa gerá-la. Formate a descrição da seguinte forma: [DESCRIÇÃO PARA GERAR IMAGEM: ...descrição detalhada aqui...]. O comando da questão deve vir após essa descrição.
                 
                 **REGRAS DE FORMATAÇÃO DA SAÍDA:**
-                - Sua resposta DEVE ser um array JSON válido, sem nenhum texto introdutório, final ou explicações.
-                - NÃO envolva o JSON em blocos de código markdown como \`\`\`json.
-                - A resposta deve ser APENAS o array de objetos JSON.
+                - Sua resposta DEVE ser um array JSON válido.
                 - O array deve conter exatamente ${numQuestions} objeto(s).
                 - A estrutura de cada objeto no array deve ser:
                 ${jsonStructure}
             `;
             
-            const responseText = await apiService.generate(prompt);
+            const responseText = await apiService.generate(prompt, { jsonOutput: true, systemInstruction });
             
             const parsedQuestions = JSON.parse(responseText);
             
@@ -511,8 +510,8 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
         setExplanationState({ content: '', isLoading: true, error: null });
         try {
             const optionsText = question.options.map((opt, i) => `${String.fromCharCode(65 + i)}) ${opt}`).join('\n');
+            const systemInstruction = `Aja como um professor especialista na disciplina de ${question.discipline}.`;
             const prompt = `
-                Aja como um professor especialista na disciplina de ${question.discipline}.
                 Analise a seguinte questão de múltipla escolha:
                 **Enunciado:** ${question.stem}
                 **Alternativas:**\n${optionsText}
@@ -523,7 +522,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 Formate sua resposta de maneira didática, usando negrito para destacar termos importantes.
                 A resposta deve ser APENAS o texto da explicação, sem introduções.
             `;
-            const explanationText = await apiService.generate(prompt);
+            const explanationText = await apiService.generate(prompt, { systemInstruction });
             setExplanationState({ content: explanationText, isLoading: false, error: null });
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Falha ao gerar a explicação.";
@@ -1957,9 +1956,9 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                 formatInstruction = `{ "stem": "...", "expectedAnswer": "...", "topics": ["..."] }`;
             }
 
-            const prompt = `
-                Aja como um especialista em elaboração de questões. Sua tarefa é modificar uma questão existente com base na instrução fornecida pelo usuário.
+            const systemInstruction = "Aja como um especialista em elaboração de questões. Sua tarefa é modificar uma questão existente com base na instrução fornecida pelo usuário.";
 
+            const prompt = `
                 A questão original é:
                 ${JSON.stringify(originalQuestionPayload, null, 2)}
 
@@ -1969,12 +1968,11 @@ const EditQuestionModal: React.FC<EditQuestionModalProps> = ({ isOpen, onClose, 
                 REGRAS OBRIGATÓRIAS:
                 1. Modifique a questão original (enunciado, alternativas, gabarito, tópicos) para atender à instrução.
                 2. Mantenha a mesma estrutura de dados da questão original.
-                3. Sua resposta DEVE ser um objeto JSON VÁLIDO, e NADA MAIS.
-                4. NÃO inclua explicações, texto introdutório, ou blocos de código markdown como \`\`\`json.
-                5. O objeto JSON de saída deve ter a seguinte estrutura: ${formatInstruction}
+                3. Sua resposta DEVE ser um objeto JSON VÁLIDO.
+                4. O objeto JSON de saída deve ter a seguinte estrutura: ${formatInstruction}
             `;
 
-            const responseText = await apiService.generate(prompt);
+            const responseText = await apiService.generate(prompt, { jsonOutput: true, systemInstruction });
             const modifiedData = JSON.parse(responseText);
 
             setEditedQuestion(prev => {
