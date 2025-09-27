@@ -9,16 +9,17 @@ import { GoogleGenAI } from '@google/genai';
 const ai = new GoogleGenAI({ apiKey: "AIzaSyCiYsLn2sLw0XN9e-vS93uKH0FoW17MVLQ" });
 
 export const apiService = {
-  async generate(prompt: string, options: { jsonOutput?: boolean; systemInstruction?: string } = {}): Promise<string> {
+  async generate(prompt: string, options: { jsonOutput?: boolean; systemInstruction?: string; temperature?: number } = {}): Promise<string> {
     try {
-        const { jsonOutput, systemInstruction } = options;
+        const { jsonOutput, systemInstruction, temperature } = options;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 ...(systemInstruction && { systemInstruction }),
-                ...(jsonOutput && { responseMimeType: 'application/json' })
+                ...(jsonOutput && { responseMimeType: 'application/json' }),
+                ...(temperature !== undefined && { temperature })
             }
         });
         

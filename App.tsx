@@ -189,6 +189,50 @@ const CustomDropdown: React.FC<CustomDropdownProps> = ({ id, label, options, sel
     );
 };
 
+// --- Temperature Slider Component ---
+interface TemperatureSliderProps {
+    id: string;
+    label: string;
+    value: number;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    min?: number;
+    max?: number;
+    step?: number;
+    tooltip?: string;
+}
+
+const TemperatureSlider: React.FC<TemperatureSliderProps> = ({ id, label, value, onChange, min = 0, max = 1, step = 0.01, tooltip }) => {
+    const percentage = ((value - min) / (max - min)) * 100;
+    // Gradient: from red-200 to red-500, then slate-200
+    const gradientStyle = {
+        background: `linear-gradient(to right, #fecaca, #ef4444 ${percentage}%, #e5e7eb ${percentage}%)`
+    };
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-1.5">
+                    <label htmlFor={id} className="block text-sm font-medium text-slate-700">{label}</label>
+                    {tooltip && <InfoTooltip text={tooltip} />}
+                </div>
+                <span className="text-sm font-semibold text-slate-600 w-12 text-right">{value.toFixed(2)}</span>
+            </div>
+            <input
+                type="range"
+                id={id}
+                min={min}
+                max={max}
+                step={step}
+                value={value}
+                onChange={onChange}
+                style={gradientStyle}
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer range-slider"
+            />
+        </div>
+    );
+};
+
+
 // --- Explanation Modal Component ---
 interface ExplanationModalProps {
     isOpen: boolean;
@@ -348,6 +392,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
     const [numQuestions, setNumQuestions] = useState(3);
     const [topic, setTopic] = useState('');
     const [questionType, setQuestionType] = useState<'objective' | 'subjective'>('objective');
+    const [temperature, setTemperature] = useState(0.4);
 
     const BLOOM_LEVEL_COLORS: { [key: string]: string } = {
         'Lembrar': 'bg-slate-100 text-slate-800',
@@ -466,7 +511,7 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                 ${jsonStructure}
             `;
             
-            const responseText = await apiService.generate(prompt, { jsonOutput: true, systemInstruction });
+            const responseText = await apiService.generate(prompt, { jsonOutput: true, systemInstruction, temperature });
             
             const parsedQuestions = JSON.parse(responseText);
             
@@ -590,6 +635,16 @@ const QuestionGeneratorView: React.FC<QuestionGeneratorViewProps> = ({ addQuesti
                                         <CustomDropdown id="difficulty" label="Nível de Dificuldade" options={DIFFICULTY_LEVELS} selectedValue={difficulty} onSelect={handleDifficultyChange} tooltip="Define a dificuldade geral da questão." />
                                     </div>
                                     <CustomDropdown id="construction" label="Tipo de Construção" options={CONSTRUCTION_TYPES} selectedValue={constructionType} onSelect={setConstructionType} tooltip="Determina o formato e a abordagem da questão, como interpretação de texto, cálculo, ou análise de contexto social." />
+                                
+                                    <div className="sm:col-span-2">
+                                      <TemperatureSlider
+                                        id="temperature"
+                                        label="Criatividade (Temperatura)"
+                                        value={temperature}
+                                        onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                                        tooltip="Valores mais baixos geram respostas mais focadas e consistentes. Valores mais altos incentivam respostas mais criativas e diversas, mas podem ser menos previsíveis."
+                                      />
+                                    </div>
                                 </div>
                             </div>
                         </fieldset>
