@@ -1,12 +1,12 @@
+
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
 import { GoogleGenAI } from '@google/genai';
 
 // --- API Service ---
 // Serviço para interagir com a API do Google Gemini.
 
-// A chave de API é inserida diretamente no código para garantir a funcionalidade em ambientes de implantação como o Netlify,
-// onde as variáveis de ambiente podem não estar configuradas.
-const ai = new GoogleGenAI({ apiKey: "AIzaSyCiYsLn2sLw0XN9e-vS93uKH0FoW17MVLQ" });
+// A chave de API é obtida a partir das variáveis de ambiente.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const apiService = {
   async generate(prompt: string, options: { jsonOutput?: boolean; systemInstruction?: string; temperature?: number } = {}): Promise<string> {
