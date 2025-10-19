@@ -1,6 +1,6 @@
 
 import { Question, Exam, KnowledgeFile, KnowledgeFileWithContent } from './types';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 
 // --- API Service ---
 // Serviço para interagir com a API do Google Gemini.
@@ -9,21 +9,35 @@ import { GoogleGenAI } from '@google/genai';
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const apiService = {
-  async generate(prompt: string, options: { jsonOutput?: boolean; systemInstruction?: string; temperature?: number } = {}): Promise<string> {
+  async generate(prompt: string, options: { jsonOutput?: boolean; systemInstruction?: string; temperature?: number; useWebSearch?: boolean } = {}): Promise<GenerateContentResponse> {
     try {
-        const { jsonOutput, systemInstruction, temperature } = options;
+        const { jsonOutput, systemInstruction, temperature, useWebSearch } = options;
+
+        const config: {
+            systemInstruction?: string;
+            responseMimeType?: string;
+            temperature?: number;
+            tools?: any[];
+        } = {};
+        
+        if (systemInstruction) config.systemInstruction = systemInstruction;
+        if (temperature !== undefined) config.temperature = temperature;
+
+        if (useWebSearch) {
+            config.tools = [{googleSearch: {}}];
+            // Não defina responseMimeType ao usar a ferramenta googleSearch
+        } else if (jsonOutput) {
+            config.responseMimeType = 'application/json';
+        }
+
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
-            config: {
-                ...(systemInstruction && { systemInstruction }),
-                ...(jsonOutput && { responseMimeType: 'application/json' }),
-                ...(temperature !== undefined && { temperature })
-            }
+            config
         });
         
-        return response.text;
+        return response;
 
     } catch (error) {
       console.error("Falha na requisição à API Gemini:", error);
