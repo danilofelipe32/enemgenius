@@ -32,7 +32,7 @@ export const apiService = {
 
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config
         });
@@ -52,15 +52,16 @@ export const apiService = {
 // --- Storage Service ---
 const DB_NAME = "EnemGeniusPWA_DB";
 const KNOWLEDGE_STORE = "knowledgeFiles";
-let db: IDBDatabase;
+let db: IDBDatabase | undefined;
+let initPromise: Promise<IDBDatabase> | null = null;
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
     request.onerror = () => reject("Erro ao abrir o IndexedDB");
     request.onsuccess = (event) => {
-      db = (event.target as IDBOpenDBRequest).result;
-      resolve(db);
+      const database = (event.target as IDBOpenDBRequest).result;
+      resolve(database);
     };
     request.onupgradeneeded = (event) => {
       const dbInstance = (event.target as IDBOpenDBRequest).result;
@@ -73,9 +74,14 @@ const openDB = (): Promise<IDBDatabase> => {
 
 export const storageService = {
   async init() {
-    if (!db) {
-      db = await openDB();
+    if (db) return;
+    if (!initPromise) {
+      initPromise = openDB().then(database => {
+        db = database;
+        return database;
+      });
     }
+    await initPromise;
   },
 
   // LocalStorage for simple data
@@ -96,6 +102,8 @@ export const storageService = {
 
   // IndexedDB for knowledge files
   async saveFile(file: KnowledgeFileWithContent): Promise<void> {
+    await this.init();
+    if (!db) throw new Error("Database not initialized");
     const transaction = db.transaction([KNOWLEDGE_STORE], "readwrite");
     const store = transaction.objectStore(KNOWLEDGE_STORE);
     store.put(file);
@@ -105,6 +113,8 @@ export const storageService = {
     });
   },
   async getFile(id: string): Promise<KnowledgeFileWithContent | undefined> {
+    await this.init();
+    if (!db) throw new Error("Database not initialized");
     const transaction = db.transaction([KNOWLEDGE_STORE], "readonly");
     const store = transaction.objectStore(KNOWLEDGE_STORE);
     const request = store.get(id);
@@ -114,6 +124,8 @@ export const storageService = {
     });
   },
   async getAllFilesMeta(): Promise<KnowledgeFile[]> {
+    await this.init();
+    if (!db) throw new Error("Database not initialized");
     const transaction = db.transaction([KNOWLEDGE_STORE], "readonly");
     const store = transaction.objectStore(KNOWLEDGE_STORE);
     const request = store.getAll();
@@ -126,6 +138,8 @@ export const storageService = {
     });
   },
   async deleteFile(id: string): Promise<void> {
+     await this.init();
+     if (!db) throw new Error("Database not initialized");
      const transaction = db.transaction([KNOWLEDGE_STORE], "readwrite");
      const store = transaction.objectStore(KNOWLEDGE_STORE);
      store.delete(id);

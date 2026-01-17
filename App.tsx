@@ -709,6 +709,18 @@ const QuestionBank: React.FC<{
             setEditingQuestion(null);
         }
     };
+
+    const getBloomColorClass = (level: string) => {
+        switch (level) {
+            case 'Lembrar': return 'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-500/10';
+            case 'Entender': return 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-700/10';
+            case 'Aplicar': return 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20';
+            case 'Analisar': return 'bg-yellow-50 text-yellow-800 ring-1 ring-inset ring-yellow-600/20';
+            case 'Avaliar': return 'bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-600/20';
+            case 'Criar': return 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/10';
+            default: return 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-500/10';
+        }
+    };
     
     if (editingQuestion) {
         return (
@@ -769,47 +781,98 @@ const QuestionBank: React.FC<{
                 </button>
             </div>
             
-             <div className="space-y-4">
+             <div className="space-y-6">
                 {filteredQuestions.length > 0 ? (
                     filteredQuestions.map(q => (
-                        <div key={q.id} className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
-                           <div className="flex justify-between items-start">
-                                <p className="text-slate-800 whitespace-pre-wrap flex-1 pr-4">{q.stem}</p>
-                                <div className="flex items-center gap-1">
-                                    <button onClick={() => onToggleFavorite(q.id)} title="Favoritar">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-colors ${q.favorited ? 'text-amber-400 hover:text-amber-500' : 'text-slate-300 hover:text-slate-400'}`} viewBox="0 0 20 20" fill="currentColor">
+                        <div key={q.id} className="bg-white p-6 rounded-2xl shadow-md border border-slate-200 transition-all hover:shadow-lg hover:border-cyan-100 group relative">
+                            
+                            {/* Header Section */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+                                <div className="flex flex-wrap gap-2">
+                                     <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider border border-slate-200">{q.discipline}</span>
+                                     <span className={`text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider border ${getBloomColorClass(q.bloomLevel).replace('ring-1 ring-inset ring-gray-500/10', 'border-gray-200').replace('ring-1 ring-inset ring-blue-700/10', 'border-blue-200').replace('ring-1 ring-inset ring-green-600/20', 'border-green-200').replace('ring-1 ring-inset ring-yellow-600/20', 'border-yellow-200').replace('ring-1 ring-inset ring-orange-600/20', 'border-orange-200').replace('ring-1 ring-inset ring-red-600/10', 'border-red-200')} ${getBloomColorClass(q.bloomLevel)}`}>{q.bloomLevel}</span>
+                                     <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider border border-slate-200">{q.difficulty}</span>
+                                </div>
+                                
+                                <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                        onClick={() => onToggleFavorite(q.id)} 
+                                        title={q.favorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                                        className={`p-2 rounded-lg transition-all ${q.favorited ? 'bg-amber-100 text-amber-500 shadow-sm' : 'bg-white text-slate-400 border border-slate-200 hover:border-amber-300 hover:text-amber-400'}`}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                         </svg>
                                     </button>
-                                     <button onClick={() => setEditingQuestion(q)} title="Editar" className="p-1 text-slate-400 hover:text-slate-600">
+                                    <button 
+                                        onClick={() => setEditingQuestion(q)} 
+                                        title="Editar questão" 
+                                        className="p-2 rounded-lg bg-white text-slate-400 border border-slate-200 hover:border-cyan-300 hover:text-cyan-600 transition-all"
+                                    >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
                                     </button>
-                                    <button onClick={() => onDelete(q.id)} title="Excluir" className="p-1 text-slate-400 hover:text-red-600">
+                                    <button 
+                                        onClick={() => onDelete(q.id)} 
+                                        title="Excluir questão" 
+                                        className="p-2 rounded-lg bg-white text-slate-400 border border-slate-200 hover:border-red-300 hover:text-red-600 transition-all"
+                                    >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                                     </button>
                                 </div>
-                           </div>
-                           {q.type === 'objective' && q.options && (
-                                <ol className="list-[upper-alpha] list-inside pl-2 mt-2 space-y-1 text-slate-600">
+                            </div>
+
+                            {/* Content Section */}
+                            <div className="mb-6">
+                                <p className="text-slate-800 text-lg leading-relaxed whitespace-pre-wrap">{q.stem}</p>
+                            </div>
+
+                            {/* Options Section */}
+                            {q.type === 'objective' && q.options && (
+                                <div className="grid gap-3 mb-6">
                                     {q.options.map((option, index) => (
-                                        <li key={index} className={q.answerIndex === index ? 'font-semibold text-cyan-800' : ''}>{option}</li>
+                                        <div key={index} className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${q.answerIndex === index ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-slate-50 border-transparent hover:bg-slate-100'}`}>
+                                                <span className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${q.answerIndex === index ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                                {String.fromCharCode(65 + index)}
+                                                </span>
+                                                <span className={`text-sm sm:text-base ${q.answerIndex === index ? 'font-medium text-green-900' : 'text-slate-700'}`}>{option}</span>
+                                        </div>
                                     ))}
-                                </ol>
-                           )}
-                           <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-2 text-xs">
-                                <span className="bg-slate-100 text-slate-700 font-medium px-2 py-1 rounded-full">{q.discipline}</span>
-                                <span className="bg-cyan-50 text-cyan-700 font-medium px-2 py-1 rounded-full">{q.bloomLevel}</span>
-                                <span className="bg-indigo-50 text-indigo-700 font-medium px-2 py-1 rounded-full">{q.difficulty}</span>
-                           </div>
-                           <div className="mt-4 flex justify-end">
-                                <button onClick={() => handleExplainQuestion(q)} className="text-sm font-semibold text-cyan-700 hover:text-cyan-600">Ver Explicação</button>
-                           </div>
+                                </div>
+                            )}
+                            
+                            {q.type === 'subjective' && q.expectedAnswer && (
+                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Resposta Esperada</p>
+                                    <p className="text-slate-700 text-sm">{q.expectedAnswer}</p>
+                                </div>
+                            )}
+
+                            {/* Footer Section */}
+                            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                                <div className="text-xs text-slate-400 font-medium">
+                                    Adicionada em {formatDate(q.creationDate)}
+                                </div>
+                                <button onClick={() => handleExplainQuestion(q)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 rounded-lg transition-colors border border-cyan-100">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                    Ver Explicação
+                                </button>
+                            </div>
                         </div>
                     ))
                 ) : (
-                    <div className="text-center py-10 bg-white rounded-xl border border-slate-200">
+                    <div className="text-center py-10 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-4">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
                         <h3 className="text-lg font-semibold text-slate-700">Nenhuma questão encontrada</h3>
-                        <p className="text-slate-500 mt-1">Tente ajustar seus filtros ou gere novas questões!</p>
+                        <p className="text-slate-500 mt-1 max-w-sm mx-auto">Tente ajustar seus filtros de busca ou utilize o Gerador de Questões para criar novos conteúdos!</p>
+                        <button onClick={() => setFilter('')} className="mt-4 px-4 py-2 text-sm font-medium text-cyan-700 hover:bg-cyan-50 rounded-md transition-colors">
+                            Limpar filtros
+                        </button>
                     </div>
                 )}
             </div>
